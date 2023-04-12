@@ -1,3 +1,5 @@
+use rug::Integer;
+
 fn is_prime__fibo(ivar_1: Integer) -> Integer {
     let ivar_2: bool = {
         let ivar_4: Integer = 2;
