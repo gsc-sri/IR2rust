@@ -1,58 +1,19 @@
+# PVS 2 Rust PoC
+# Translates the code from IR.lisp to out.rs
+# Nathan Gasc - SRI International 
+
+# dependencies : Python3, prettier with rust plugin
+ 
 import os
+from IRparser import *
 
 FN_NAME = "is_prime__fibo"
 FN_LIST = {"is_prime__fibo":1,
            "nrem":2,
            }
 
-
-def str_till_cp(chaine):
-    chaine = chaine.strip(" \n")
-    if chaine[0] != '(':
-        i = 0
-        for char in chaine:
-            if char == ' ':
-                break
-            i += 1
-        #print("single", chaine[:i], chaine[i:] )
-        return chaine[:i], chaine[i:]
-    else :
-        count = 0
-        i = 0
-        for char in chaine:
-            if char == '(':
-                count += 1
-            elif char == ')':
-                count -= 1
-            i += 1
-            if count == 0:
-                #print("good ", 'A', chaine[:i],'A', chaine[i:], 'A' )
-                return chaine[:i], chaine[i:]
-        #print("error on " + chaine)
-        return "INVALID PARENTHESIS", ""
-
-def get_els_from_str(chaine):
-    #print("getting els from", chaine)
-
-    arr = []
-    while len(chaine) > 1:
-        el , chaine = str_till_cp(chaine)
-        arr.append(el)
-
-    tabl = []
-    for els in arr:
-        if els.strip()[0] != "(":
-            tabl.append(els)
-        else:
-            tabl.append(get_els_from_str(els.strip(" \n")[1:-1]))
-    return tabl
-
-# last let subrange rename - <
-
-# on peut partir sur une structure de la forme fonction
-# recursive interp qui garde la structure du code lisp
-
 def get_type(t):
+    # Get rust type from IR type string
     if isinstance(t, str):
         t = t.strip(" \n")
         if t == "mpq":
@@ -66,27 +27,34 @@ def get_type(t):
         try:
             assert(t[0] == "subrange")
         except:
-            print("INVALID TYPE")
-            exit(1)
+            raise Exception("UKNW TYPE : " + t)
         if t[1] == '*':
             return 'nat'
         elif int(t[1]) >= 0:
             return 'Integer' #posnat
         else:
-            return 'Interger'
+            return 'Integer'
 
 def get_var(v):
-    # from ['last', ['ivar_1', ['subrange', '0', '*', 'nil', 'nil'], 'n']]
+    # From parsed var return name and type
+    # e.g. from ['last', ['ivar_1', ['subrange', '0', '*', 'nil', 'nil'], 'n']]
     # to [name='ivar_1', type='Integer']
     if v[0] == "last":
         return get_var(v[1])
     return v[0], get_type(v[1])
 
+
 def interp(parsed_IR) -> str:
+    # Recursive function to translate a subset of IR to rust
+    # It takes advantage of the functionnal aspects of rust
     command = parsed_IR[0]
+
+    # to bypass things like [[command]]
     if not isinstance(command, str):
         return interp(parsed_IR[0])
     output = ""
+
+    # literal translation
     match command:
         case "lambda":
             output += "fn " + FN_NAME + "("
@@ -146,7 +114,7 @@ def interp(parsed_IR) -> str:
             output += v
             return output
 
-        case _:
+        case _: #else
             if command in FN_LIST.keys():
                 output += command + "("
                 for i in range(FN_LIST[command]):
@@ -163,10 +131,17 @@ if __name__ == "__main__":
     fichier = open("IR.lisp", 'r')
     src = fichier.read()
     fichier.close()
-    parsed = get_els_from_str(src)
-    rust = interp(parsed)
+
+    #uses parser to go from lisp with parenthesis, to the same but in an array structure
+    parsed = get_els_from_str(src) 
+
+    #actual translation
+    header = "use rug::Integer;\n"
+    rust = header + interp(parsed)
+
     fichier = open("out.rs", "w")
     fichier.write(rust)
     fichier.close()
-    os.system("prettier --write out.rs")
+
+    os.system("prettier --write out.rs") # requires prettier
 
