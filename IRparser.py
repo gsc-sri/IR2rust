@@ -22,7 +22,7 @@ def str_till_cp(chaine):
                 #print("good ", 'A', chaine[:i],'A', chaine[i:], 'A' )
                 return chaine[:i], chaine[i:]
         #print("error on " + chaine)
-        return "INVALID PARENTHESIS", ""
+        raise Exception("E >> INVALID PARENTHESIS")
 
 def get_els_from_str(chaine):
     #print("getting els from", chaine)
