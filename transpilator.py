@@ -4,9 +4,10 @@
 
 # dependencies : Python3, prettier with rust plugin
  
-# il va falloir faire une meilleure gestion des fonctions avec des closures
 # puis faudra voir comment on gere les arrays et les refs
 # polymorphism
+# recursion : very weak parsing
+# problem : no recursive closure in rust
 
 #(recordtype
 #    ((=> (project_1 project_192) (subrange 0 * nil nil))
@@ -20,6 +21,7 @@ from language import *
 
 if __name__ == "__main__":
     fichier = open("IR.lisp", 'r')
+    name = fichier.readline()
     src = fichier.read()
     fichier.close()
 
@@ -28,7 +30,7 @@ if __name__ == "__main__":
 
     #actual translation
     header = "use rug::Integer;\n"
-    rust = "use rug::Integer;\nfn main(){let f = " + get_expr(parsed, []).toRust() + ";}"
+    rust = "use rug::Integer;\n\n" + Efn(parsed[0], [], name).toRust() 
 
     fichier = open("out.rs", "w")
     fichier.write(rust)

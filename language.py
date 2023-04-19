@@ -3,9 +3,8 @@ DEBUG = True
 
 def debug(c:str) -> None:
     if DEBUG:
-        print("DEBUG >> " + c + "\n")
+        print("DEBUG >> " + c)
 
-FN_LIST = ["nrem"]
 OPERATOR_CORR = {"+" : "+",
                  "-" : "-",
                  "*" : "*",
@@ -86,7 +85,10 @@ def get_expr(tabl, env) -> expr:
     try:
         key = tabl[0]
         if not isinstance(key, str): # handles cases such as [[ thing ]]
-            return get_expr(key, env)
+            if len(tabl) < 2:
+                return get_expr(key, env)
+            else:
+                return Elambdacall(tabl, env)
         else:
             key = key.strip(' \n')
     except:
@@ -95,10 +97,12 @@ def get_expr(tabl, env) -> expr:
     if key == "lambda": return Efn(tabl, env)
     elif key == "let": return Elet(tabl, env)
     elif key == "if": return Eif(tabl, env)
+    elif key == "release": return Erelease(tabl, env)
     elif key in OPERATOR_CORR.keys(): return Eoperator(tabl, env)
     elif key[:4] == "ivar" or key == "last": return Evariable(tabl, env)
     else:
-        raise Exception("E >> falling through parser with : " + str(tabl))
+        return Eappication(tabl, env)
+        #raise Exception("E >> falling through parser with : " + str(tabl))
 
 
 class Evariable(expr):
@@ -149,7 +153,7 @@ class Evariable(expr):
 class Evalue(expr):
     # Representation of a value sur as "123"
     def __init__(self, code, env = []) -> None:
-        self.code = code
+        self.code = code.strip(' \n')
         self.env = env
 
         if not Evalue.isValue(self.code):
@@ -161,7 +165,18 @@ class Evalue(expr):
         return arr.isdigit()
     
     def toRust(self) -> str:
-        return self.code
+        return "Integer::from(" + self.code + ")"
+    
+class Elambdacall(expr):
+    # Representation of a value sur as "123"
+    def __init__(self, code, env = []) -> None:
+        self.code = code
+        self.env = env
+        
+        debug("Elambdacall : calling lamda fn with arg: " + str(code[1]))
+    
+    def toRust(self) -> str:
+        return get_expr(self.code[0], self.env).toRust() + "(" + get_expr(self.code[1], self.env).toRust()+")"
 
 class Elet(expr):
     # Representation of a let. It changes the env with the new variable
@@ -194,7 +209,17 @@ class Eif(expr):
         output += "{" + get_expr(self.code[2], self.env).toRust() 
         output += "} else {" + get_expr(self.code[3], self.env).toRust() + "}"
         return output
-
+    
+class Erelease(expr):
+    # Representation of a if then else
+    def __init__(self, code, env = []) -> None:
+        self.code = code
+        self.env = env
+        debug("Erelease : ignoring")
+    
+    def toRust(self) -> str:
+        return get_expr(self.code[3], self.env).toRust()
+    
 class Eoperator(expr):
     # Representation of an operator, which is some functions (see OPERATOR_CORR)
     def __init__(self, code, env = []) -> None:
@@ -217,12 +242,35 @@ class Eoperator(expr):
     def toRust(self) -> str:
         return get_expr(self.code[1], self.env).toRust() + self.op + get_expr(self.code[2], self.env).toRust()
 
-class Efn(expr):
-    # Representation of a function, it updates the env and returns a 
-    # boxed (std::Box) closure
+class Eappication(expr):
+    # Representation of an expression, fn name must be is FN_NAMES
     def __init__(self, code, env = []) -> None:
         self.code = code
+        self.env = env
+
+        try:
+            self.name = code[0].strip(' \n')
+        except:
+            raise Exception("E >> error while parsing function: " + code)
+
+        debug("Eapplication : application " + self.name)
+    
+    def toRust(self) -> str:
+        output = self.name + "("
+        for argCode in self.code[1:]:
+            if not isinstance(argCode, str) or argCode.strip(' \n') != 'nil':
+                output += get_expr(argCode, self.env).toRust() + ','
+        output = output.strip(',') + ")"
+        return output
+
+class Efn(expr):
+    # Representation of a function, it updates the env and returns a 
+    # boxed (std::Box) closure, except on first level
+    def __init__(self, code, env = [], name="") -> None:
+        self.code = code
+        self.name = name
         self.type = ""
+        self.firstLevel = name != ""
 
         self.args = [] # [[name, type]]
         self.outtype = ""
@@ -265,9 +313,16 @@ class Efn(expr):
             raise Exception("E >> can't parse fn : " + str(self.code))
         
     def toRust(self):
-        output = "Box::new(move |"
-        for arg in self.args:
-            output += arg[0] + ": " + arg[1] + ","
-        output = output.strip(',') + "| -> " + self.outtype + '{'
-        output += get_expr(self.body, self.env).toRust() + '})'
+        if self.firstLevel: #we are at the base level
+            output = "fn " + self.name + "("
+            for arg in self.args:
+                output += arg[0] + ": " + arg[1] + ","
+            output = output.strip(',') + ") -> " + self.outtype + '{'
+            output += get_expr(self.body, self.env).toRust() + '}'
+        else:
+            output = "Box::new(move |"
+            for arg in self.args:
+                output += arg[0] + ": " + arg[1] + ","
+            output = output.strip(',') + "| -> " + self.outtype + '{'
+            output += get_expr(self.body, self.env).toRust() + '})'
         return output
