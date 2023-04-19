@@ -1,7 +1,7 @@
 
 DEBUG = True
 
-def debug(c:str) -> None:
+def debug(c:str) -> None: 
     if DEBUG:
         print("DEBUG >> " + c)
 
@@ -65,7 +65,7 @@ def get_var(v):
 
 #### LANGUAGE ####
 
-# env est un tableau de la forme:
+# env is an array looking like:
 # [ [names, name, type, used ] ]
 # eg [ [ ["ivar_1", "ivar_5"], "ivar_1", "Integer", True ] ]
 
@@ -168,7 +168,11 @@ class Evalue(expr):
         return "Integer::from(" + self.code + ")"
     
 class Elambdacall(expr):
-    # Representation of a value sur as "123"
+    # Representation of a lambda call: the first element is a var
+    # containing a fn, the following are the arguments
+    # TODO :
+    #   Do some more checks 
+    #   Handles > 1 args
     def __init__(self, code, env = []) -> None:
         self.code = code
         self.env = env
