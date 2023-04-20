@@ -104,6 +104,7 @@ def get_expr(tabl, env) -> expr:
     elif key == "if": return Eif(tabl, env)
     elif key == "release": return Erelease(tabl, env)
     elif key == "lett": return Elett(tabl, env)
+    elif key == "lookup": return Elookup(tabl, env)
     elif key in OPERATOR_CORR.keys(): return Eoperator(tabl, env)
     elif key[:4] == "ivar" or key == "last": return Evariable(tabl, env)
     else:
@@ -165,7 +166,7 @@ class Evalue(expr):
         if not Evalue.isValue(self.code):
             raise Exception("E >> can't parse value : " + self.code)
         
-        debug("Evalue : retourning value " + code)
+        debug("Evalue : returning value " + code)
 
     def isValue(arr) -> bool:
         return arr.isdigit()
@@ -250,25 +251,31 @@ class Erelease(expr):
     
     def toRust(self) -> str:
         return get_expr(self.code[3], self.env).toRust()
+
+class Elookup(expr):
+    # Lookup of an array
+    def __init__(self, code, env = []) -> None:
+        self.code = code
+        self.env = env
+
+        self.arrayName, self.arrayType = get_var(self.code[1])
     
+    def toRust(self) -> str:
+        # we are forced to clone on lookup because we may be using the variable
+        # that's not optimal but still good enough because its only one value
+        return self.arrayName + "[(" + get_expr(self.code[2], self.env).toRust() + ").to_usize_wrapping()].clone()"
+
 class Eoperator(expr):
     # Representation of an operator, which is some functions (see OPERATOR_CORR)
     def __init__(self, code, env = []) -> None:
         self.code = code
         self.env = env
 
-        if not Eoperator.isOperator(self.code):
+        if not self.code[0].strip(' \n') in OPERATOR_CORR.keys():
             raise Exception("E >> can't parse operation : " + self.code)
         self.op = code[0]
 
         debug("Eoperator : operator " + self.op)
-
-    def isOperator(arr) -> bool:
-        try:
-            assert(arr[0] in OPERATOR_CORR.keys())
-            return True
-        except:
-            return False
     
     def toRust(self) -> str:
         return get_expr(self.code[1], self.env).toRust() + self.op + get_expr(self.code[2], self.env).toRust()
