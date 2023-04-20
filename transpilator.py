@@ -27,7 +27,7 @@ if __name__ == "__main__":
 
     #uses parser to go from lisp with parenthesis, to the same but in an array structure
     parsed = get_els_from_str(src) 
-
+    print(parsed)
     #actual translation
     header = "use rug::Integer;\n"
     rust = "use rug::Integer;\n\n" + Efn(parsed[0], [], name).toRust() 

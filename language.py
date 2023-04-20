@@ -28,10 +28,6 @@ def get_type(t):
             return "Integer"
             raise Exception("UKNW STR TYPE : " + t)
     else:
-        try:
-            assert(t[0] == "subrange" or t[0] == "->" or "recordtype")
-        except:
-            raise Exception("E >> UKNW TYPE : ", t)
         if t[0] == "subrange":
             if t[1] == '*':
                 return 'nat'
@@ -45,7 +41,15 @@ def get_type(t):
             return "Box<dyn Fn(" + argtype + ") -> " + outtype + ">"
         elif t[0] == "recordtype":
             #TODO
-            pass
+            raise Exception("E >> TODO")
+        elif t[1].strip(' \n') == ":":
+            # array
+            element_type = get_type(t[2])
+            size, high = t[3].strip(' \n[]').split('/')
+            # what is high ?
+            return "[" + element_type + ';' + size + ']'
+        else:
+            raise Exception("E >> UKWN TYPE : ", t)
 
 
 def get_var(v):
@@ -94,10 +98,12 @@ def get_expr(tabl, env) -> expr:
     except:
         raise Exception("E >> error getting expr from : " + str(tabl))
 
+    # TODO : handle lett
     if key == "lambda": return Efn(tabl, env)
     elif key == "let": return Elet(tabl, env)
     elif key == "if": return Eif(tabl, env)
     elif key == "release": return Erelease(tabl, env)
+    elif key == "lett": return Elett(tabl, env)
     elif key in OPERATOR_CORR.keys(): return Eoperator(tabl, env)
     elif key[:4] == "ivar" or key == "last": return Evariable(tabl, env)
     else:
@@ -200,6 +206,27 @@ class Elet(expr):
         output += '};\n'
         output += get_expr(self.code[4], self.env).toRust()
         return output
+    
+class Elett(expr):
+    # Representation of a lett. It adds a new name for the variable in the env
+    def __init__(self, code, env = []) -> None:
+        self.code = code
+        self.env = env
+
+        self.varName = self.code[1].strip(' \n')
+        self.varType = get_type(self.code[2])
+
+        self.targetVar, t = get_var(self.code[4])
+
+        for var in self.env:
+            if self.targetVar in var[0]:
+                var[0].append(self.varName)
+                break
+
+        debug("Elett : added name " + self.varName + " to var " + self.targetVar)
+    
+    def toRust(self) -> str:
+        return get_expr(self.code[5], self.env).toRust()
 
 class Eif(expr):
     # Representation of a if then else
