@@ -19,8 +19,8 @@ def get_type(t):
     if isinstance(t, str):
         t = t.strip(" \n")
         if t == "mpq":
-            raise Exception("E >> Reals unsupported yet")
-            return "real"
+            debug("W >> float found, trying integer")
+            return "Integer"
         elif t == "bool" or t == "boolean":
             return "bool"
         else:
@@ -42,12 +42,13 @@ def get_type(t):
         elif t[0] == "recordtype":
             #TODO
             raise Exception("E >> TODO")
+        elif t[0] == "array":
+            arrayType = get_type(t[1])
+            size, high = t[2].strip(' \n[]').split("/")
+            return "[" + arrayType + ";" + size + "]"
         elif t[1].strip(' \n') == ":":
-            # array
-            element_type = get_type(t[2])
-            size, high = t[3].strip(' \n[]').split('/')
-            # what is high ?
-            return "[" + element_type + ';' + size + ']'
+            # custom type
+            return get_type(t[2]) #we try to guess the custom type
         else:
             raise Exception("E >> UKWN TYPE : ", t)
 
@@ -105,6 +106,7 @@ def get_expr(tabl, env) -> expr:
     elif key == "release": return Erelease(tabl, env)
     elif key == "lett": return Elett(tabl, env)
     elif key == "lookup": return Elookup(tabl, env)
+    elif key == "update": return Eupdate(tabl, env)
     elif key in OPERATOR_CORR.keys(): return Eoperator(tabl, env)
     elif key[:4] == "ivar" or key == "last": return Evariable(tabl, env)
     else:
@@ -130,9 +132,10 @@ class Evariable(expr):
         self.name = self.code[0].strip(' \n')
 
         self.fromEnv = None
-        for envVar in env:
+        for envVar in self.env:
             if self.name in envVar[0]:
                 self.fromEnv = envVar 
+                envVar[-1] = True
                 break
         
         if self.fromEnv == None:
@@ -142,7 +145,7 @@ class Evariable(expr):
         self.type = self.fromEnv[2]
         self.used = self.fromEnv[3]
 
-        debug("Evariable : Fetched var "+ self.name + " of type " + self.type + " from env.")
+        debug("Evariable : Fetched var "+ self.name + " of type " + self.type + " from env, used : " + str(self.used))
 
     def isVariable(arr) -> bool:
         try:
@@ -153,7 +156,7 @@ class Evariable(expr):
             return False
     
     def toRust(self) -> str:
-        if self.used:
+        if self.used and not self.isLast:
             return self.name + ".clone()"
         return self.name
 
@@ -197,15 +200,33 @@ class Elet(expr):
 
         self.varName = self.code[1].strip(' \n')
         self.varType = get_type(self.code[2])
-        self.env.append([[self.varName], self.varName, self.varType, False])
+
+        if isinstance(self.code[3], str) and self.code[3].strip(' \n') == 'nil':
+            self.middle = None
+            debug("WARN : cannot create null from nil [let " + self.varName+"]")
+            self.env.append([[self.varName], self.varName, self.varType, False])
+            self.right = get_expr(self.code[4], self.env)  
+            if isinstance(self.right, Eupdate):
+                debug("WARN : making exception : found update in that let. It will not be done")
+            else:
+                raise Exception("E >> found let "+self.varName+" = null")
+        else:
+            self.middle = get_expr(self.code[3], self.env)   
+            self.env = self.middle.env
+            self.env.append([[self.varName], self.varName, self.varType, False])
+            self.right = get_expr(self.code[4], self.env)  
 
         debug("Elet : created let for variable " + self.varName)
     
     def toRust(self) -> str:
-        output = "let " + self.varName + " : " + self.varType + " = {"
-        output += get_expr(self.code[3], self.env).toRust()
-        output += '};\n'
-        output += get_expr(self.code[4], self.env).toRust()
+        if self.middle == None:
+            # so we have an update to bypass:
+            output = self.right.arrayName
+        else:
+            output = "let " + self.varName + " : " + self.varType 
+            output += " = {" + self.middle.toRust()
+            output += '};\n'
+            output += self.right.toRust()
         return output
     
 class Elett(expr):
@@ -259,11 +280,33 @@ class Elookup(expr):
         self.env = env
 
         self.arrayName, self.arrayType = get_var(self.code[1])
+
+        debug("Elookup")
     
     def toRust(self) -> str:
         # we are forced to clone on lookup because we may be using the variable
         # that's not optimal but still good enough because its only one value
         return self.arrayName + "[(" + get_expr(self.code[2], self.env).toRust() + ").to_usize_wrapping()].clone()"
+
+class Eupdate(expr):
+    # Update of an array
+    def __init__(self, code, env = []) -> None:
+        self.code = code
+        self.env = env
+
+        self.arrayName, self.arrayType = get_var(self.code[1])
+        self.index = get_expr(code[2], self.env)
+        self.env = self.index.env
+        self.value = get_expr(code[3], self.env)
+        self.env = self.value.env
+        debug("Eupdate")
+
+    
+    def toRust(self) -> str:
+        output = "let mut tmp = " + self.arrayName + ".clone();\ntmp[(" + self.index.toRust() + ").to_usize_wrapping()]" + " = " + self.value.toRust()
+        output += "; tmp" #tmp is a good variable name because it will fall out of scope here
+        # compiler is intelligent : if a clone is not necessary it will not do it
+        return output
 
 class Eoperator(expr):
     # Representation of an operator, which is some functions (see OPERATOR_CORR)
@@ -273,12 +316,17 @@ class Eoperator(expr):
 
         if not self.code[0].strip(' \n') in OPERATOR_CORR.keys():
             raise Exception("E >> can't parse operation : " + self.code)
-        self.op = code[0]
+        self.op = OPERATOR_CORR[code[0]]
+
+        self.leftOp = get_expr(self.code[1], self.env)
+        self.env = self.leftOp.env
+        self.rightOp = get_expr(self.code[2], self.env)
+        self.env = self.rightOp.env
 
         debug("Eoperator : operator " + self.op)
     
     def toRust(self) -> str:
-        return get_expr(self.code[1], self.env).toRust() + self.op + get_expr(self.code[2], self.env).toRust()
+        return self.leftOp.toRust() + self.op + self.rightOp.toRust()
 
 class Eappication(expr):
     # Representation of an expression, fn name must be is FN_NAMES
@@ -338,7 +386,7 @@ class Efn(expr):
             assert(Efn.isFn(self.code))
             for var in self.code[1]:
                 v, t = get_var(var)
-                self.args.append([v, t])
+                self.args.append([v.strip(' \n'), t.strip(' \n')])
             self.outtype = get_type(self.code[3])
             self.body = self.code[4]
 
