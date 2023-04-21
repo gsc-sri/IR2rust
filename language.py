@@ -71,7 +71,7 @@ def get_var(v):
 #### LANGUAGE ####
 
 # env is an array looking like:
-# [ [names, name, type, used ] ]
+# [ [names, name, type, used, mutable ] ]
 # eg [ [ ["ivar_1", "ivar_5"], "ivar_1", "Integer", True ] ]
 
 class expr: 
@@ -83,7 +83,31 @@ class expr:
     def toRust(self) -> str:
         raise Exception("Must implement toRust function !")
     
-def get_expr(tabl, env) -> expr:
+
+class var:
+    def __init__(self, name : str, type : str, scope : expr) -> None:
+        self.name : str = name
+        self.names : list[str] = [name]
+        self.type : str = type
+        self.used : bool = False
+        self.mutable : bool = False
+        self.scope : expr
+
+class env:
+    def __init__(self, from_env=None):
+        self.variables : list[var] = [] if from_env == None else from_env.variables
+
+    def get_var(self, s : str):
+        for var in self.variables:
+            if s in var.names:
+                return var
+        return None
+    
+    def set_used(self, s : str):
+        self.get_var(s).used = True
+
+    
+def get_expr(tabl : list[list | str] | str, env : env) -> expr:
     # From ['object', ...] to corresponding expr
     if isinstance(tabl, str):
         return Evalue(tabl, env)
@@ -93,9 +117,9 @@ def get_expr(tabl, env) -> expr:
             if len(tabl) < 2:
                 return get_expr(key, env)
             else:
-                return Elambdacall(tabl, env)
+                return Elambdacall(tabl, env) # lambda calls : [[expr fn] [expr arg]]
         else:
-            key = key.strip(' \n')
+            key = key.strip(' \n') # hence str
     except:
         raise Exception("E >> error getting expr from : " + str(tabl))
 
@@ -110,14 +134,13 @@ def get_expr(tabl, env) -> expr:
     elif key[:4] == "ivar" or key == "last": return Evariable(tabl, env)
     else:
         return Eappication(tabl, env)
-        #raise Exception("E >> falling through parser with : " + str(tabl))
 
 
 class Evariable(expr):
     # Representation of a variable with possibly a last before
     # Here is a representation for variables as expr ! Hence they
     # must already be in the env. For declaration see Elet and Efn
-    def __init__(self, code, env = []) -> None:
+    def __init__(self, code : str, env : env) -> None:
         self.code = code
         self.env = env
 
@@ -130,19 +153,15 @@ class Evariable(expr):
 
         self.name = self.code[0].strip(' \n')
 
-        self.fromEnv = None
-        for envVar in self.env:
-            if self.name in envVar[0]:
-                self.fromEnv = envVar 
-                envVar[-1] = True
-                break
+        self.fromEnv = self.env.get_var(self.name)
         
         if self.fromEnv == None:
-            raise Exception("E >> can't find variable " + self.name + " in env " + str(self.env))
+            raise Exception("E >> can't find variable " + self.name + " in env " + str(self.env.variables))
         
-        self.name = self.fromEnv[1]
-        self.type = self.fromEnv[2]
-        self.used = self.fromEnv[3]
+        self.name = self.fromEnv.name
+        self.type = self.fromEnv.type
+        self.used = self.fromEnv.used
+        self.mutable = self.fromEnv.mutable
 
         debug("Evariable : Fetched var "+ self.name + " of type " + self.type + " from env, used : " + str(self.used))
 
@@ -155,13 +174,14 @@ class Evariable(expr):
             return False
     
     def toRust(self) -> str:
-        if self.used and not self.isLast:
+        if self.used and not self.isLast: # TODO : regarder si ce clone est vraiment necessaire
             return self.name + ".clone()"
         return self.name
 
+
 class Evalue(expr):
     # Representation of a value sur as "123"
-    def __init__(self, code, env = []) -> None:
+    def __init__(self, code : str, env : env) -> None:
         self.code = code.strip(' \n')
         self.env = env
 
@@ -176,43 +196,53 @@ class Evalue(expr):
     def toRust(self) -> str:
         return "Integer::from(" + self.code + ")"
     
+
 class Elambdacall(expr):
     # Representation of a lambda call: the first element is a var
     # containing a fn, the following are the arguments
     # TODO :
     #   Do some more checks 
     #   Handles > 1 args
-    def __init__(self, code, env = []) -> None:
+    def __init__(self, code : str, env : env) -> None:
         self.code = code
         self.env = env
+
+        self.fn = get_expr(self.code[0], self.env)
+
+        self.body = get_expr(self.code[1], self.env)
+        self.env = self.body.env
         
         debug("Elambdacall : calling lamda fn with arg: " + str(code[1]))
     
     def toRust(self) -> str:
-        return get_expr(self.code[0], self.env).toRust() + "(" + get_expr(self.code[1], self.env).toRust()+")"
+        return self.fn.toRust() + "(" + self.body.toRust()+")"
+
 
 class Elet(expr):
     # Representation of a let. It changes the env with the new variable
-    def __init__(self, code, env = []) -> None:
+    def __init__(self, code : str, env : env) -> None:
         self.code = code
         self.env = env
 
-        self.varName = self.code[1].strip(' \n')
-        self.varType = get_type(self.code[2])
+        self.varName : str = self.code[1].strip(' \n')
+        self.varType : str  = get_type(self.code[2])
 
+        # TODO : modifier le bypass en un simple rename
         if isinstance(self.code[3], str) and self.code[3].strip(' \n') == 'nil':
             self.middle = None
             debug("WARN : cannot create null from nil [let " + self.varName+"]")
-            self.env.append([[self.varName], self.varName, self.varType, False])
+            self.env.variables.append(var(self.varName, self.varType, self))
             self.right = get_expr(self.code[4], self.env)  
             if isinstance(self.right, Eupdate):
                 debug("WARN : making exception : found update in that let. It will not be done")
+                self.env.get_var(self.right.array.name).names.append(self.varName)
+
             else:
                 raise Exception("E >> found let "+self.varName+" = null")
         else:
             self.middle = get_expr(self.code[3], self.env)   
             self.env = self.middle.env
-            self.env.append([[self.varName], self.varName, self.varType, False])
+            self.env.variables.append(var(self.varName, self.varType, self))
             self.right = get_expr(self.code[4], self.env)  
 
         debug("Elet : created let for variable " + self.varName)
@@ -220,9 +250,12 @@ class Elet(expr):
     def toRust(self) -> str:
         if self.middle == None:
             # so we have an update to bypass:
-            output = self.right.arrayName
+            output = self.right.array.name
         else:
-            output = "let " + self.varName + " : " + self.varType 
+            v = self.env.get_var(self.varName)
+            if v.mutable: output = "let mut "
+            else : output = "let "
+            output += v.name + " : " + v.type 
             output += " = {" + self.middle.toRust()
             output += '};\n'
             output += self.right.toRust()
@@ -230,7 +263,7 @@ class Elet(expr):
     
 class Elett(expr):
     # Representation of a lett. It adds a new name for the variable in the env
-    def __init__(self, code, env = []) -> None:
+    def __init__(self, code : str, env : env) -> None:
         self.code = code
         self.env = env
 
@@ -239,32 +272,43 @@ class Elett(expr):
 
         self.targetVar, t = get_var(self.code[4])
 
-        for var in self.env:
-            if self.targetVar in var[0]:
-                var[0].append(self.varName)
+        for var in self.env.variables:
+            if self.targetVar in var.names:
+                var.names.append(self.varName)
                 break
+        
+        self.body : expr = get_expr(self.code[5], self.env)
+        self.env = self.body.env
 
         debug("Elett : added name " + self.varName + " to var " + self.targetVar)
     
     def toRust(self) -> str:
-        return get_expr(self.code[5], self.env).toRust()
+        return self.body.toRust()
 
 class Eif(expr):
     # Representation of a if then else
-    def __init__(self, code, env = []) -> None:
+    def __init__(self, code : str, env : env) -> None:
         self.code = code
         self.env = env
+
+        self.cond : expr = get_expr(self.code[1], self.env)
+        self.env = self.cond.env
+        self.true : expr = get_expr(self.code[2], self.env)
+        self.env = self.true.env # conservative
+        self.false : expr = get_expr(self.code[3], self.env)
+        self.env = self.false.env
+
         debug("Eif : if stmt")
     
     def toRust(self) -> str:
-        output = "if " + get_expr(self.code[1], self.env).toRust()
-        output += "{" + get_expr(self.code[2], self.env).toRust() 
-        output += "} else {" + get_expr(self.code[3], self.env).toRust() + "}"
+        output = "if " + self.cond.toRust()
+        output += "{" + self.true.toRust() 
+        output += "} else {" + self.false.toRust() + "}"
         return output
     
 class Erelease(expr):
-    # Representation of a if then else
-    def __init__(self, code, env = []) -> None:
+    # Representation of release
+    def __init__(self, code : str, env : env) -> None:
         self.code = code
         self.env = env
         debug("Erelease : ignoring")
@@ -274,42 +318,49 @@ class Erelease(expr):
 
 class Elookup(expr):
     # Lookup of an array
-    def __init__(self, code, env = []) -> None:
+    def __init__(self, code : str, env : env) -> None:
         self.code = code
         self.env = env
 
         self.arrayName, self.arrayType = get_var(self.code[1])
+
+        self.var : var = env.get_var(self.arrayName)
+
+        self.index : expr = get_expr(self.code[2], self.env)
+        self.env = self.index.env
 
         debug("Elookup")
     
     def toRust(self) -> str:
         # we are forced to clone on lookup because we may be using the variable
         # that's not optimal but still good enough because its only one value
-        return self.arrayName + "[(" + get_expr(self.code[2], self.env).toRust() + ").to_usize_wrapping()].clone()"
+        return self.arrayName + "[(" + self.index.toRust() + ").to_usize_wrapping()].clone()"
 
 class Eupdate(expr):
     # Update of an array
-    def __init__(self, code, env = []) -> None:
+    def __init__(self, code : str, env : env) -> None:
         self.code = code
         self.env = env
 
-        self.arrayName, self.arrayType = get_var(self.code[1])
-        self.index = get_expr(code[2], self.env)
+        self.array : expr = get_expr(self.code[1], self.env)
+        
+        self.index : expr = get_expr(code[2], self.env)
         self.env = self.index.env
-        self.value = get_expr(code[3], self.env)
+        self.value : expr = get_expr(code[3], self.env)
         self.env = self.value.env
-        debug("Eupdate")
+        self.env.get_var(self.array.name).mutable = True
 
+        debug("Eupdate : array " + self.array.name)
     
     def toRust(self) -> str:
-        output = "let mut tmp = " + self.arrayName + ".clone();\ntmp[(" + self.index.toRust() + ").to_usize_wrapping()]" + " = " + self.value.toRust()
-        output += "; tmp" #tmp is a good variable name because it will fall out of scope here
-        # compiler is intelligent : if a clone is not necessary it will not do it
-        return output
+        output = self.array.name + "[(" + self.index.toRust() + ").to_usize_wrapping()]" + " = " + self.value.toRust()
+        output += "; " + self.array.name 
+        return output # un clone peut etre necessaire: il faut regarder dans le env 
+    
 
 class Eoperator(expr):
     # Representation of an operator, which is some functions (see OPERATOR_CORR)
-    def __init__(self, code, env = []) -> None:
+    def __init__(self, code : str, env : env) -> None:
         self.code = code
         self.env = env
 
@@ -329,7 +380,7 @@ class Eoperator(expr):
 
 class Eappication(expr):
     # Representation of an expression, fn name must be is FN_NAMES
-    def __init__(self, code, env = []) -> None:
+    def __init__(self, code : str, env : env) -> None:
         self.code = code
         self.env = env
 
@@ -337,21 +388,26 @@ class Eappication(expr):
             self.name = code[0].strip(' \n')
         except:
             raise Exception("E >> error while parsing function: " + code)
+        
+        self.args : list[expr] = []
+        for argCode in self.code[1:]:
+            if not isinstance(argCode, str) or argCode.strip(' \n') != 'nil':
+                self.args.append(get_expr(argCode, self.env))
+                self.env = self.args[-1].env
 
         debug("Eapplication : application " + self.name)
     
     def toRust(self) -> str:
         output = self.name + "("
-        for argCode in self.code[1:]:
-            if not isinstance(argCode, str) or argCode.strip(' \n') != 'nil':
-                output += get_expr(argCode, self.env).toRust() + ','
+        for arg in self.args:
+            output += arg.toRust() + ','
         output = output.strip(',') + ")"
         return output
 
 class Efn(expr):
     # Representation of a function, it updates the env and returns a 
     # boxed (std::Box) closure, except on first level
-    def __init__(self, code, env = [], name="") -> None:
+    def __init__(self, code : str, env : env, name = "") -> None:
         self.code = code
         self.name = name
         self.type = ""
@@ -363,11 +419,14 @@ class Efn(expr):
         self.env = env 
 
         self.parse()
-        for var in self.env: # mark all variables used (later we need to clone them )
-            var[3] = True
+        for vari in self.env.variables: # mark all variables used (later we need to clone them )
+            vari.used = True
 
         for arg in self.args:
-            self.env.append([[arg[0]], arg[0], arg[1], False])
+            self.env.variables.append(var(arg[0], arg[1], self))
+
+        self.body : expr = get_expr(self.body, self.env)
+        self.env = self.body.env
         
         debug("Efn : function " + str(self.args) + " -> " + str(self.outtype))
 
@@ -393,7 +452,6 @@ class Efn(expr):
             for arg in self.args:
                 self.type += arg[1] + ','
             self.type = self.type.strip(',') + ") -> " + self.outtype + '>'
-
         except:
             raise Exception("E >> can't parse fn : " + str(self.code))
         
@@ -401,13 +459,19 @@ class Efn(expr):
         if self.firstLevel: #we are at the base level
             output = "fn " + self.name + "("
             for arg in self.args:
-                output += arg[0] + ": " + arg[1] + ","
+                if self.env.get_var(arg[0]).mutable:
+                    output += "mut " + arg[0] + ": " + arg[1] + ","
+                else:
+                    output += arg[0] + ": " + arg[1] + ","
             output = output.strip(',') + ") -> " + self.outtype + '{'
-            output += get_expr(self.body, self.env).toRust() + '}'
+            output += self.body.toRust() + '}'
         else:
             output = "Box::new(move |"
             for arg in self.args:
-                output += arg[0] + ": " + arg[1] + ","
+                if self.env.get_var(arg[0]).mutable:
+                    output += "mut " + arg[0] + ": " + arg[1] + ","
+                else:
+                    output += arg[0] + ": " + arg[1] + ","
             output = output.strip(',') + "| -> " + self.outtype + '{'
-            output += get_expr(self.body, self.env).toRust() + '})'
+            output += self.body.toRust() + '})'
         return output

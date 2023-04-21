@@ -49,45 +49,41 @@
 /// OUTPUT:
 #[allow(non_snake_case, dead_code)]
 fn smalltranspose__transpose_step(
-    ivar_1: [[Integer; SIZE]; SIZE],
+    mut ivar_1: [[Integer; 99]; 99],
     ivar_2: Integer,
     ivar_3: Integer
-) -> [[Integer; SIZE]; SIZE] {
-    let ivar_4: bool = { ivar_3.clone() == Integer::from(SIZE) };
-    if ivar_4.clone() {
+) -> [[Integer; 99]; 99] {
+    let ivar_4: bool = { ivar_3 == Integer::from(99) };
+    if ivar_4 {
         ivar_1
     } else {
-        let ivar_9: [[Integer; SIZE]; SIZE] = {
+        let ivar_9: [[Integer; 99]; 99] = {
             let ivar_11: Integer = {
-                let ivar_16: [Integer; SIZE] = { ivar_1[ivar_3.clone().to_usize_wrapping()].clone() };
-                ivar_16[ivar_2.clone().to_usize_wrapping()].clone()
+                let ivar_16: [Integer; 99] = { ivar_1[ivar_3.to_usize_wrapping()].clone() };
+                ivar_16[ivar_2.to_usize_wrapping()].clone()
             };
             let ivar_12: Integer = {
-                let ivar_27: [Integer; SIZE] = { ivar_1[ivar_2.clone().to_usize_wrapping()].clone() };
-                ivar_27[ivar_3.clone().to_usize_wrapping()].clone()
+                let ivar_27: [Integer; 99] = { ivar_1[ivar_2.to_usize_wrapping()].clone() };
+                ivar_27[ivar_3.to_usize_wrapping()].clone()
             };
-            let ivar_47: [[Integer; SIZE]; SIZE] = {
-                let ivar_36: [Integer; SIZE] = { ivar_1[ivar_2.clone().to_usize_wrapping()].clone() };
-                let ivar_44: [[Integer; SIZE]; SIZE] = { ivar_1 };
-                let ivar_45: [Integer; SIZE] = {
-                    let mut tmp = ivar_36.clone();
-                    tmp[ivar_3.clone().to_usize_wrapping()] = ivar_11;
-                    tmp
+            let mut ivar_47: [[Integer; 99]; 99] = {
+                let mut ivar_36: [Integer; 99] = { ivar_1[ivar_2.to_usize_wrapping()].clone() };
+                let mut ivar_44: [[Integer; 99]; 99] = { ivar_1 };
+                let ivar_45: [Integer; 99] = {
+                    ivar_36[ivar_3.to_usize_wrapping()] = ivar_11;
+                    ivar_36
                 };
-                let mut tmp = ivar_44.clone();
-                tmp[ivar_2.clone().to_usize_wrapping()] = ivar_45;
-                tmp
+                ivar_44[ivar_2.to_usize_wrapping()] = ivar_45;
+                ivar_44
             };
-            let ivar_48: [Integer; SIZE] = { ivar_47[ivar_3.clone().to_usize_wrapping()].clone() };
-            let ivar_56: [[Integer; SIZE]; SIZE] = { ivar_47 };
-            let ivar_57: [Integer; SIZE] = {
-                let mut tmp = ivar_48.clone();
-                tmp[ivar_2.clone().to_usize_wrapping()] = ivar_12;
-                tmp
+            let mut ivar_48: [Integer; 99] = { ivar_47[ivar_3.to_usize_wrapping()].clone() };
+            let mut ivar_56: [[Integer; 99]; 99] = { ivar_47 };
+            let ivar_57: [Integer; 99] = {
+                ivar_48[ivar_2.to_usize_wrapping()] = ivar_12;
+                ivar_48
             };
-            let mut tmp = ivar_56.clone();
-            tmp[ivar_3.clone().to_usize_wrapping()] = ivar_57;
-            tmp
+            ivar_56[ivar_3.to_usize_wrapping()] = ivar_57;
+            ivar_56
         };
         let ivar_72: Integer = { ivar_3 + Integer::from(1) };
         smalltranspose__transpose_step(ivar_9, ivar_2, ivar_72)
