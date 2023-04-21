@@ -99,7 +99,6 @@ def get_expr(tabl, env) -> expr:
     except:
         raise Exception("E >> error getting expr from : " + str(tabl))
 
-    # TODO : handle lett
     if key == "lambda": return Efn(tabl, env)
     elif key == "let": return Elet(tabl, env)
     elif key == "if": return Eif(tabl, env)

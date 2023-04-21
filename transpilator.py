@@ -4,16 +4,6 @@
 
 # Dependencies : Python3, Prettier with Rust plugin
 
-# TODO:
-# Handle arrays 
-# Handle types
-# Can we use Rust polymorphism for generic type ?
-# Handle recordtypes :
-#   (recordtype
-#       ((=> (project_1 project_192) (subrange 0 * nil nil))
-#        (=> (project_2 project_293) (subrange 0 * nil nil))))
-#    where project_* are projections from tuples
-
 import os
 from IRparser import *
 from language import *
