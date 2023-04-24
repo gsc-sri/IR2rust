@@ -369,9 +369,8 @@ class Eupdate(expr):
         debug("Eupdate : array " + self.array.name)
 
     def toRust(self) -> str:
-        output = "let mut tmp = " + self.array.toRust() + ".clone();"
-        output += "(*Rc::make_mut(&mut tmp))["+ self.index.toRust() +" as usize] = "
-        output += self.value.toRust() +"; tmp"
+        output = "(*Rc::make_mut(&mut " + self.array.toRust() + "))["+ self.index.toRust() +" as usize] = "
+        output += self.value.toRust() +"; " + self.array.toRust() 
         return output
 
 
