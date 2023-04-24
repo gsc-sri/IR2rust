@@ -20,7 +20,7 @@ if __name__ == "__main__":
     print(parsed)
     #actual translation
     header = "use rug::Integer;\n"
-    rust = "use rug::Integer;\n\n#[allow(non_snake_case, dead_code)]\n" + Efn(parsed[0], env(), name).toRust() 
+    rust = "use std::rc::Rc\n\n#[allow(non_snake_case, dead_code)]\n" + Efn(parsed[0], env(), name).toRust() 
 
     fichier = open("out.rs", "w")
     fichier.write(rust)

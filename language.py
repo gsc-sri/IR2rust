@@ -48,7 +48,7 @@ def get_type(t):
         elif t[0] == "array":
             arrayType = get_type(t[1])
             size, high = t[2].strip(' \n[]').split("/")
-            return "&Rc<[" + arrayType + "; " + size + "]"
+            return "Rc<[" + arrayType + "; " + size + "]>"
         elif t[1].strip(' \n') == ":":
             # custom type
             return get_type(t[2])  # we try to guess the custom type
@@ -73,10 +73,6 @@ def get_var(v):
 
 #### LANGUAGE ####
 
-# env is an array looking like:
-# [ [names, name, type, used, mutable ] ]
-# eg [ [ ["ivar_1", "ivar_5"], "ivar_1", "i32", True ] ]
-
 class expr:
     # abstract class for expressions (= everything)
     # the init must parse
@@ -93,7 +89,6 @@ class var:
         self.names: list[str] = [name]
         self.type: str = type
         self.used: bool = False
-        self.mutable: bool = False
         self.scope: expr
 
 
@@ -177,7 +172,6 @@ class Evariable(expr):
         self.name = self.fromEnv.name
         self.type = self.fromEnv.type
         self.used = self.fromEnv.used
-        self.mutable = self.fromEnv.mutable
 
         debug("Evariable : Fetched var " + self.name + " of type " +
               self.type + " from env, used : " + str(self.used))
@@ -273,10 +267,7 @@ class Elet(expr):
             output = self.right.array.name
         else:
             v = self.env.get_var(self.varName)
-            if v.mutable:
-                output = "let mut "
-            else:
-                output = "let "
+            output = "let "
             output += v.name + " : " + v.type
             output += " = {" + self.middle.toRust()
             output += '};\n'
@@ -358,8 +349,7 @@ class Elookup(expr):
         debug("Elookup")
 
     def toRust(self) -> str:
-        # we are forced to clone on lookup because we may be using the variable
-        # that's not optimal but still good enough because its only one value
+        # the clone is only of ref so not a big deal
         return self.arrayName + "[" + self.index.toRust() + " as usize].clone()"
 
 
@@ -375,16 +365,14 @@ class Eupdate(expr):
         self.env = self.index.env
         self.value: expr = get_expr(code[3], self.env)
         self.env = self.value.env
-        self.env.get_var(self.array.name).mutable = True
 
         debug("Eupdate : array " + self.array.name)
 
     def toRust(self) -> str:
-        output = self.array.name + \
-            "[" + self.index.toRust() + " as usize]" + \
-            " = " + self.value.toRust()
-        output += "; " + self.array.name
-        return output  # un clone peut etre necessaire: il faut regarder dans le env
+        output = "let mut tmp = " + self.array.toRust() + ".clone();"
+        output += "(*Rc::make_mut(&mut tmp))["+ self.index.toRust() +" as usize] = "
+        output += self.value.toRust() +"; tmp"
+        return output
 
 
 class Eoperator(expr):
@@ -491,19 +479,13 @@ class Efn(expr):
         if self.firstLevel:  # we are at the base level
             output = "fn " + self.name + "("
             for arg in self.args:
-                if self.env.get_var(arg[0]).mutable:
-                    output += "mut " + arg[0] + ": " + arg[1] + ","
-                else:
-                    output += arg[0] + ": " + arg[1] + ","
+                output += arg[0] + ": " + arg[1] + ","
             output = output.strip(',') + ") -> " + self.outtype + '{'
             output += self.body.toRust() + '}'
         else:
             output = "Box::new(move |"
             for arg in self.args:
-                if self.env.get_var(arg[0]).mutable:
-                    output += "mut " + arg[0] + ": " + arg[1] + ","
-                else:
-                    output += arg[0] + ": " + arg[1] + ","
+                output += arg[0] + ": " + arg[1] + ","
             output = output.strip(',') + "| -> " + self.outtype + '{'
             output += self.body.toRust() + '})'
         return output
