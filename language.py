@@ -56,27 +56,15 @@ def get_type(t):
             raise Exception("E >> UKWN TYPE : ", t)
 
 
-def get_var(v):
-    # From parsed var return name and type
-    # e.g. from ['last', ['ivar_1', ['subrange', '0', '*', 'nil', 'nil'], 'n']]
-    # to [name='ivar_1', type='i32']
-    if v[0] == "last":
-        return get_var(v[1])
-    if isinstance(v, str):
-        v = v.strip(' \n')
-        if v.isdigit():
-            return v, "i32"
-        else:
-            raise Exception("E >> get_var error on : " + v)
-    return v[0], get_type(v[1])
-
-
 #### LANGUAGE ####
 
 class expr:
     # abstract class for expressions (= everything)
     # the init must parse
     def __init__(self, code, env=[]) -> None:
+        self.code: str = None
+        self.env: list[var] = None
+        self.usedVars: list[var] = None
         raise Exception("Must implement __init__ function !")
 
     def toRust(self) -> str:
@@ -84,27 +72,41 @@ class expr:
 
 
 class var:
-    def __init__(self, name: str, type: str, scope: expr) -> None:
+    def __init__(self, name: str, type: str, scope: expr, isArg = False) -> None:
         self.name: str = name
         self.names: list[str] = [name]
         self.type: str = type
         self.used: bool = False
         self.scope: expr
+        self.mutable: bool = False
+        self.isArg: bool = isArg
+        self.collapsed_value_expr: expr = None
+
+    def __str__(self) -> str:
+        is_collapsed = self.collapsed_value_expr == None
+        return "VAR " + self.name + " collapsed " + str(is_collapsed) + " arg " + str(self.isArg) + " mut " + str(self.mutable)
 
 
 class env:
     def __init__(self, from_env=None):
-        self.variables: list[var] = [
-        ] if from_env == None else from_env.variables
+        self.variables: list[var] = [] if from_env == None else from_env.variables
 
     def get_var(self, s: str):
+        s = s.strip(' \n')
         for var in self.variables:
             if s in var.names:
                 return var
+        debug("WARN : var " + s + " not found in env " + str(self))
         return None
 
     def set_used(self, s: str):
         self.get_var(s).used = True
+
+    def __str__(self) -> str:
+        output = ""
+        for var in self.variables:
+            output += str(var) + "\n"
+        return output
 
 
 def get_expr(tabl: list[list | str] | str, env: env) -> expr:
@@ -124,26 +126,16 @@ def get_expr(tabl: list[list | str] | str, env: env) -> expr:
     except:
         raise Exception("E >> error getting expr from : " + str(tabl))
 
-    if key == "lambda":
-        return Efn(tabl, env)
-    elif key == "let":
-        return Elet(tabl, env)
-    elif key == "if":
-        return Eif(tabl, env)
-    elif key == "release":
-        return Erelease(tabl, env)
-    elif key == "lett":
-        return Elett(tabl, env)
-    elif key == "lookup":
-        return Elookup(tabl, env)
-    elif key == "update":
-        return Eupdate(tabl, env)
-    elif key in OPERATOR_CORR.keys():
-        return Eoperator(tabl, env)
-    elif key[:4] == "ivar" or key == "last":
-        return Evariable(tabl, env)
-    else:
-        return Eappication(tabl, env)
+    if key == "lambda": return Efn(tabl, env)
+    elif key == "let": return Elet(tabl, env)
+    elif key == "if": return Eif(tabl, env)
+    elif key == "release": return Erelease(tabl, env)
+    elif key == "lett": return Elett(tabl, env)
+    elif key == "lookup": return Elookup(tabl, env)
+    elif key == "update": return Eupdate(tabl, env)
+    elif key in OPERATOR_CORR.keys(): return Eoperator(tabl, env)
+    elif key[:4] == "ivar" or key == "last": return Evariable(tabl, env)
+    else: return Eappication(tabl, env)
 
 
 class Evariable(expr):
@@ -168,6 +160,8 @@ class Evariable(expr):
         if self.fromEnv == None:
             raise Exception("E >> can't find variable " +
                             self.name + " in env " + str(self.env.variables))
+        
+        self.usedVars: list[var] = [self.fromEnv]
 
         self.name = self.fromEnv.name
         self.type = self.fromEnv.type
@@ -185,9 +179,13 @@ class Evariable(expr):
             return False
 
     def toRust(self) -> str:
+        if self.fromEnv.collapsed_value_expr != None:
+            output = self.fromEnv.collapsed_value_expr.toRust()
+        else:
+            output = self.name
         if self.used and not self.isLast:  # TODO : regarder si ce clone est vraiment necessaire
-            return self.name + ".clone()"
-        return self.name
+            output += ".clone()"
+        return output
 
 
 class Evalue(expr):
@@ -195,6 +193,7 @@ class Evalue(expr):
     def __init__(self, code: str, env: env) -> None:
         self.code = code.strip(' \n')
         self.env = env
+        self.usedVars: list[var] = []
 
         if not Evalue.isValue(self.code):
             raise Exception("E >> can't parse value : " + self.code)
@@ -214,11 +213,14 @@ class Elambdacall(expr):
     # TODO :
     #   Do some more checks
     #   Handles > 1 args
+    #   Check that this fn does actually work
     def __init__(self, code: str, env: env) -> None:
+        raise Exception("E >> lambda calls to be reviewed")
+        self.usedVars: list[var] = None
         self.code = code
         self.env = env
 
-        self.fn = get_expr(self.code[0], self.env)
+        self.fn = get_expr(self.code[0], self.env) # type 
 
         self.body = get_expr(self.code[1], self.env)
         self.env = self.body.env
@@ -230,10 +232,12 @@ class Elambdacall(expr):
 
 
 class Elet(expr):
+    # les variables modifiees dans value ne doivent pas etre utilisees plus tard
+    # sinon faut copier
     # Representation of a let. It changes the env with the new variable
     def __init__(self, code: str, env: env) -> None:
         self.code = code
-        self.env = env
+        self.env: env = env
 
         self.varName: str = self.code[1].strip(' \n')
         self.varType: str = get_type(self.code[2])
@@ -259,19 +263,47 @@ class Elet(expr):
             self.env.variables.append(var(self.varName, self.varType, self))
             self.right = get_expr(self.code[4], self.env)
 
-        debug("Elet : created let for variable " + self.varName)
+        self.usedVars: list[var] = self.right.usedVars
+        if self.middle != None:
+            self.usedVars += self.middle.usedVars
+
+        self.collapsed = False
+        self.collapse()
+        if not self.collapsed: debug("Elet : created let for variable " + self.varName)
+
+    def collapse(self):
+        # Rust implementation of let is not very efficient, and we expect IR to have already done
+        # some of the work
+        # This function has to be called at the end of let init and will:
+        # - Check if the let can be collapsed
+        # - Collapse it if possible
+
+        v: var = self.env.get_var(self.varName)
+        if v.mutable:
+            for var in self.usedVars:
+                if var.isArg:
+                    debug("INFO : var " + var.name + " cannot be collapsed")
+                    return # can't collapse a value we may change (we do not want to damage the args)
+        if isinstance(self.middle, Eupdate): 
+            debug("INFO : var " + self.varName + " purposly not collapsed")
+            return
+        self.collapsed = True
+        v.collapsed_value_expr = self.middle
 
     def toRust(self) -> str:
         if self.middle == None:
             # so we have an update to bypass:
             output = self.right.array.name
         else:
-            v = self.env.get_var(self.varName)
-            output = "let "
-            output += v.name + " : " + v.type
-            output += " = {" + self.middle.toRust()
-            output += '};\n'
-            output += self.right.toRust()
+            if self.collapsed:
+                output = self.right.toRust()
+            else:
+                v = self.env.get_var(self.varName)
+                output = "{let mut "
+                output += v.name + " : " + v.type
+                output += " = {" + self.middle.toRust()
+                output += '};\n'
+                output += self.right.toRust() + "}"
         return output
 
 
@@ -284,15 +316,18 @@ class Elett(expr):
         self.varName = self.code[1].strip(' \n')
         self.varType = get_type(self.code[2])
 
-        self.targetVar, t = get_var(self.code[4])
+        self.targetVar = get_expr(self.code[4], self.env)
+        self.env = self.targetVar.env
+
 
         for var in self.env.variables:
-            if self.targetVar in var.names:
+            if self.targetVar.name in var.names:
                 var.names.append(self.varName)
                 break
 
         self.body: expr = get_expr(self.code[5], self.env)
         self.env = self.body.env
+        self.usedVars: list[var] = self.body.usedVars
 
         debug("Elett : added name " + self.varName + " to var " + self.targetVar)
 
@@ -313,6 +348,8 @@ class Eif(expr):
         self.false: expr = get_expr(self.code[3], self.env)
         self.env = self.false.env
 
+        self.usedVars: list[var] = self.cond.usedVars + self.true.usedVars + self.false.usedVars
+
         debug("Eif : if stmt")
 
     def toRust(self) -> str:
@@ -327,6 +364,7 @@ class Erelease(expr):
     def __init__(self, code: str, env: env) -> None:
         self.code = code
         self.env = env
+        self.usedVars: list[var] = []
         debug("Erelease : ignoring")
 
     def toRust(self) -> str:
@@ -339,18 +377,27 @@ class Elookup(expr):
         self.code = code
         self.env = env
 
-        self.arrayName, self.arrayType = get_var(self.code[1])
-
-        self.var: var = env.get_var(self.arrayName)
+        self.var: expr = get_expr(self.code[1], self.env)
+        self.env = self.var.env
 
         self.index: expr = get_expr(self.code[2], self.env)
         self.env = self.index.env
 
+        self.usedVars: list[var] = self.var.usedVars + self.index.usedVars
+
         debug("Elookup")
+
+    def get_array_name(self):
+        if isinstance(self.var, Evariable):
+            return self.var.fromEnv.name
+        elif isinstance(self.var, Elookup):
+            return self.var.get_array_name()
+        else:
+            raise Exception("E >> lookup var is neither Evariable or Elookup")
 
     def toRust(self) -> str:
         # the clone is only of ref so not a big deal
-        return self.arrayName + "[" + self.index.toRust() + " as usize].clone()"
+        return self.var.toRust() + "[" + self.index.toRust() + " as usize].clone()"
 
 
 class Eupdate(expr):
@@ -361,16 +408,21 @@ class Eupdate(expr):
 
         self.array: expr = get_expr(self.code[1], self.env)
 
+        if isinstance(self.array, Evariable):
+            self.array.fromEnv.mutable = True
+
         self.index: expr = get_expr(code[2], self.env)
         self.env = self.index.env
         self.value: expr = get_expr(code[3], self.env)
         self.env = self.value.env
 
-        debug("Eupdate : array " + self.array.name)
+        self.usedVars: list[var] = self.array.usedVars + self.index.usedVars + self.value.usedVars
+
+        debug("Eupdate : array " + self.array.toRust())
 
     def toRust(self) -> str:
-        output = "(*Rc::make_mut(&mut " + self.array.toRust() + "))["+ self.index.toRust() +" as usize] = "
-        output += self.value.toRust() +"; " + self.array.toRust() 
+        output = "{(*Rc::make_mut(&mut " + self.array.toRust() + "))["+ self.index.toRust() +" as usize] = "
+        output += self.value.toRust() +"; " + self.array.get_array_name() + "}" 
         return output
 
 
@@ -388,6 +440,8 @@ class Eoperator(expr):
         self.env = self.leftOp.env
         self.rightOp = get_expr(self.code[2], self.env)
         self.env = self.rightOp.env
+
+        self.usedVars: list[var] = self.leftOp.usedVars + self.rightOp.usedVars
 
         debug("Eoperator : operator " + self.op)
 
@@ -411,6 +465,8 @@ class Eappication(expr):
             if not isinstance(argCode, str) or argCode.strip(' \n') != 'nil':
                 self.args.append(get_expr(argCode, self.env))
                 self.env = self.args[-1].env
+
+        self.usedVars: list[var] = [arg.usedVars for arg in self.args]
 
         debug("Eapplication : application " + self.name)
 
@@ -442,12 +498,15 @@ class Efn(expr):
             vari.used = True
 
         for arg in self.args:
-            self.env.variables.append(var(arg[0], arg[1], self))
+            self.env.variables.append(var(arg[0], arg[1], self, True))
 
         self.body: expr = get_expr(self.body, self.env)
         self.env = self.body.env
 
+        self.usedVars: list[var] = self.body.usedVars
+
         debug("Efn : function " + str(self.args) + " -> " + str(self.outtype))
+        debug(str(self.env))
 
     def isFn(arr) -> bool:
         try:
@@ -462,7 +521,8 @@ class Efn(expr):
         try:
             assert (Efn.isFn(self.code))
             for var in self.code[1]:
-                v, t = get_var(var)
+                v = var[0]
+                t = get_type(var[1])
                 self.args.append([v.strip(' \n'), t.strip(' \n')])
             self.outtype = get_type(self.code[3])
             self.body = self.code[4]
@@ -478,12 +538,14 @@ class Efn(expr):
         if self.firstLevel:  # we are at the base level
             output = "fn " + self.name + "("
             for arg in self.args:
+                if self.env.get_var(arg[0]).mutable: output += "mut "
                 output += arg[0] + ": " + arg[1] + ","
             output = output.strip(',') + ") -> " + self.outtype + '{'
             output += self.body.toRust() + '}'
         else:
             output = "Box::new(move |"
             for arg in self.args:
+                if self.env.get_var(arg[0]).mutable: output += "mut "
                 output += arg[0] + ": " + arg[1] + ","
             output = output.strip(',') + "| -> " + self.outtype + '{'
             output += self.body.toRust() + '})'
