@@ -404,7 +404,7 @@ class Eoperator(expr):
 
         if not self.code[0].strip(' \n') in OPERATOR_CORR.keys():
             raise Exception("E >> can't parse operation : " + self.code)
-        self.op = OPERATOR_CORR[code[0]]
+        self.op = OPERATOR_CORR[code[0].strip(' \n')]
 
         self.leftOp = get_expr(self.code[1], self.env)
         self.env = self.leftOp.env

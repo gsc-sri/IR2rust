@@ -19,7 +19,7 @@ Supports:
 ### Can we use Rust polymorphism for generic type ?
 Yes !
 Here is an example (but that's not implemented rn bc not really frequent)
-```rust=
+```rust
 //appl[T: TYPE]: THEORY
 // BEGIN
 //  f: VAR [T -> T]
@@ -38,6 +38,7 @@ fn appl__appl<T : 'static>(f : Box<dyn Fn(T) -> T>) -> Box<dyn Fn(T) -> T>{
 
 ### Handle datatypes
 TBD
+Not actually handled in C
 
 ### Handle recordtypes :
 

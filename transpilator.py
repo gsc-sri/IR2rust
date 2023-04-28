@@ -11,16 +11,17 @@ from language import *
 
 if __name__ == "__main__":
     fichier = open("IR.lisp", 'r')
-    name = fichier.readline()
     src = fichier.read()
     fichier.close()
 
-    #uses parser to go from lisp with parenthesis, to the same but in an array structure
-    parsed = get_els_from_str(src) 
-    #print(parsed)
-    #actual translation
-    header = "use rug::Integer;\n"
-    rust = "use std::rc::Rc\n\n#[allow(non_snake_case, dead_code)]\n" + Efn(parsed[0], env(), name).toRust() 
+    rust = "use std::rc::Rc\n\n"
+
+    functions = src.split("$")
+    for fn in functions:
+        name, code = fn.split("@")
+        parsed = get_els_from_str(code)
+        rust += "#[allow(non_snake_case, dead_code)]\n"
+        rust += Efn(parsed[0], env(), name).toRust() + "\n\n"
 
     fichier = open("out.rs", "w")
     fichier.write(rust)
