@@ -19,6 +19,9 @@ Supports:
 ### Can we use Rust polymorphism for generic type ?
 TBD
 
+### Handle datatypes
+TBD
+
 ### Handle recordtypes :
 
 ```
@@ -28,7 +31,7 @@ TBD
 ```
 where project_* are projections from tuples
 
-### Improve horrible perfs
+### Improve horrible perfs : done
 
 #### Basic with integers and cloning
 
@@ -108,10 +111,3 @@ sys     0m0.142s
  ```
  The allocation during the test takes very little time. 
 
-### Misc TODO
-
-Les muts ne sont pas bien placés.
-Il faut réparer le lambda call.
-Il faut mettre à jour l'exemple.
-Cleanup et comments avant d'attaquer les datatypes.
-Aussi ecrire les modif de l'IR.
