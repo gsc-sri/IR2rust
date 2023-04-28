@@ -1,7 +1,6 @@
 
 DEBUG = True
 
-
 def debug(c: str) -> None:
     if DEBUG:
         print("DEBUG >> " + c)
@@ -18,7 +17,7 @@ OPERATOR_CORR = {"+": "+",
 
 
 def get_type(t):
-    # Get rust type from IR type string
+    # Get rust type from IR type string or array
     if isinstance(t, str):
         t = t.strip(" \n")
         if t == "mpq":
@@ -80,11 +79,9 @@ class var:
         self.scope: expr
         self.mutable: bool = False
         self.isArg: bool = isArg
-        self.collapsed_value_expr: expr = None
 
     def __str__(self) -> str:
-        is_collapsed = self.collapsed_value_expr == None
-        return "VAR " + self.name + " collapsed " + str(is_collapsed) + " arg " + str(self.isArg) + " mut " + str(self.mutable)
+        return "VAR " + self.name + " arg " + str(self.isArg) + " mut " + str(self.mutable)
 
 
 class env:
@@ -179,10 +176,7 @@ class Evariable(expr):
             return False
 
     def toRust(self) -> str:
-        if self.fromEnv.collapsed_value_expr != None:
-            output = self.fromEnv.collapsed_value_expr.toRust()
-        else:
-            output = self.name
+        output = self.name
         if self.used and not self.isLast:  # TODO : regarder si ce clone est vraiment necessaire
             output += ".clone()"
         return output
@@ -267,43 +261,22 @@ class Elet(expr):
         if self.middle != None:
             self.usedVars += self.middle.usedVars
 
-        self.collapsed = False
-        self.collapse()
-        if not self.collapsed: debug("Elet : created let for variable " + self.varName)
-
-    def collapse(self):
-        # Rust implementation of let is not very efficient, and we expect IR to have already done
-        # some of the work
-        # This function has to be called at the end of let init and will:
-        # - Check if the let can be collapsed
-        # - Collapse it if possible
-
-        v: var = self.env.get_var(self.varName)
-        if v.mutable:
-            for var in self.usedVars:
-                if var.isArg:
-                    debug("INFO : var " + var.name + " cannot be collapsed")
-                    return # can't collapse a value we may change (we do not want to damage the args)
-        if isinstance(self.middle, Eupdate): 
-            debug("INFO : var " + self.varName + " purposly not collapsed")
-            return
-        self.collapsed = True
-        v.collapsed_value_expr = self.middle
+        debug("Elet : created let for variable " + self.varName)
 
     def toRust(self) -> str:
         if self.middle == None:
             # so we have an update to bypass:
             output = self.right.array.name
         else:
-            if self.collapsed:
-                output = self.right.toRust()
-            else:
-                v = self.env.get_var(self.varName)
+            v = self.env.get_var(self.varName)
+            if v.mutable:
                 output = "{let mut "
-                output += v.name + " : " + v.type
-                output += " = {" + self.middle.toRust()
-                output += '};\n'
-                output += self.right.toRust() + "}"
+            else:
+                output = "{let "
+            output += v.name + " : " + v.type
+            output += " = {" + self.middle.toRust()
+            output += '};\n'
+            output += self.right.toRust() + "}"
         return output
 
 
@@ -398,6 +371,16 @@ class Elookup(expr):
     def toRust(self) -> str:
         # the clone is only of ref so not a big deal
         return self.var.toRust() + "[" + self.index.toRust() + " as usize].clone()"
+    
+    def lhsToRust(self):
+        # (*Rc::make_mut(&mut array))[index]
+        # Prints the lookup when on the left hand side of an update
+        if isinstance(self.var, Evariable):
+            return "(*Rc::make_mut(&mut "+ self.var.toRust() +" ))["+ self.index.toRust() +" as usize]"
+        elif isinstance(self.var, Elookup):
+            return "(*Rc::make_mut(&mut "+ self.var.lhsToRust() +" ))["+ self.index.toRust() +" as usize]"
+        else:
+            raise Exception("E >> Left hand side array is neither lookup or variable")
 
 
 class Eupdate(expr):
@@ -421,10 +404,12 @@ class Eupdate(expr):
         debug("Eupdate : array " + self.array.toRust())
 
     def toRust(self) -> str:
-        output = "{(*Rc::make_mut(&mut " + self.array.toRust() + "))["+ self.index.toRust() +" as usize] = "
-        output += self.value.toRust() +"; " + self.array.get_array_name() + "}" 
+        if isinstance(self.array, Elookup):
+            output = "(*Rc::make_mut(&mut " + self.array.lhsToRust() + "))["+ self.index.toRust() +" as usize] = "
+        else:
+            output = "(*Rc::make_mut(&mut " + self.array.toRust() + "))["+ self.index.toRust() +" as usize] = "
+        output += self.value.toRust() +"; " + self.array.get_array_name()  
         return output
-
 
 class Eoperator(expr):
     # Representation of an operator, which is some functions (see OPERATOR_CORR)
@@ -451,6 +436,8 @@ class Eoperator(expr):
 
 class Eappication(expr):
     # Representation of an expression, fn name must be is FN_NAMES
+    # The variables must be cloned if they are used later because the
+    # fn will take them in its scope (welcome to rust)
     def __init__(self, code: str, env: env) -> None:
         self.code = code
         self.env = env
@@ -460,7 +447,7 @@ class Eappication(expr):
         except:
             raise Exception("E >> error while parsing function: " + code)
 
-        self.args: list[expr] = []
+        self.args: list[Evariable] = []
         for argCode in self.code[1:]:
             if not isinstance(argCode, str) or argCode.strip(' \n') != 'nil':
                 self.args.append(get_expr(argCode, self.env))
@@ -473,7 +460,10 @@ class Eappication(expr):
     def toRust(self) -> str:
         output = self.name + "("
         for arg in self.args:
-            output += arg.toRust() + ','
+            if arg.isLast:
+                output += arg.toRust() + ','
+            else:
+                output += arg.toRust() + '.clone() ,'
         output = output.strip(',') + ")"
         return output
 

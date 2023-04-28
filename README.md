@@ -87,11 +87,31 @@ sys     0m0.004s
 ```
 Still far better
 
+#### Let collapsing
+
+Around 10s 1000x1000
+
+#### In place modification
+
+10000x10000
+```
+real    0m1.666s
+user    0m1.443s
+sys     0m0.142s
+```
+
 #### Misc
 
  compile code:
  ```bash=
  cargo rustc --bin rust-project --profile perf -- -C link-args=-Wl,-stack_size,0x1000000000
  ```
-
  The allocation during the test takes very little time. 
+
+### Misc TODO
+
+Les muts ne sont pas bien placés.
+Il faut réparer le lambda call.
+Il faut mettre à jour l'exemple.
+Cleanup et comments avant d'attaquer les datatypes.
+Aussi ecrire les modif de l'IR.
