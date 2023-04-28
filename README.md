@@ -17,7 +17,24 @@ Supports:
 
 ## TODO:
 ### Can we use Rust polymorphism for generic type ?
-TBD
+Yes !
+Here is an example (but that's not implemented rn bc not really frequent)
+```rust=
+//appl[T: TYPE]: THEORY
+// BEGIN
+//  f: VAR [T -> T]
+//  y: VAR T
+//  appl(f)(y): T = f(y)
+// END appl
+
+#[allow(non_snake_case, dead_code)]
+fn appl__appl<T : 'static>(f : Box<dyn Fn(T) -> T>) -> Box<dyn Fn(T) -> T>{
+    // the trait 'static is mandatory due to the use in the closure
+    Box::new(move |y : T| -> T {
+        f(y)
+    })
+} 
+```
 
 ### Handle datatypes
 TBD
