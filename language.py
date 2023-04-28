@@ -16,7 +16,7 @@ OPERATOR_CORR = {"+": "+",
                  }
 
 
-def get_type(t):
+def get_type(t : str | list) -> str:
     # Get rust type from IR type string or array
     if isinstance(t, str):
         t = t.strip(" \n")
@@ -60,7 +60,7 @@ def get_type(t):
 class expr:
     # abstract class for expressions (= everything)
     # the init must parse
-    def __init__(self, code, env=[]) -> None:
+    def __init__(self, code : str | list , env=[]) -> None:
         self.code: str = None
         self.env: list[var] = None
         self.usedVars: list[var] = None
@@ -71,12 +71,13 @@ class expr:
 
 
 class var:
+    # Represents a variable of the env
     def __init__(self, name: str, type: str, scope: expr, isArg = False) -> None:
         self.name: str = name
         self.names: list[str] = [name]
         self.type: str = type
         self.used: bool = False
-        self.scope: expr
+        self.scope: expr = scope # Not used rn but may be for better memory management
         self.mutable: bool = False
         self.isArg: bool = isArg
 
@@ -85,6 +86,7 @@ class var:
 
 
 class env:
+    # The set of currently used variable
     def __init__(self, from_env=None):
         self.variables: list[var] = [] if from_env == None else from_env.variables
 
@@ -177,7 +179,7 @@ class Evariable(expr):
 
     def toRust(self) -> str:
         output = self.name
-        if self.used and not self.isLast:  # TODO : regarder si ce clone est vraiment necessaire
+        if self.used and not self.isLast: 
             output += ".clone()"
         return output
 
@@ -209,8 +211,7 @@ class Elambdacall(expr):
     #   Handles > 1 args
     #   Check that this fn does actually work
     def __init__(self, code: str, env: env) -> None:
-        raise Exception("E >> lambda calls to be reviewed")
-        self.usedVars: list[var] = None
+
         self.code = code
         self.env = env
 
@@ -218,6 +219,8 @@ class Elambdacall(expr):
 
         self.body = get_expr(self.code[1], self.env)
         self.env = self.body.env
+
+        self.usedVars: list[var] = self.fn.usedVars + self.body.usedVars
 
         debug("Elambdacall : calling lamda fn with arg: " + str(code[1]))
 
@@ -227,7 +230,7 @@ class Elambdacall(expr):
 
 class Elet(expr):
     # les variables modifiees dans value ne doivent pas etre utilisees plus tard
-    # sinon faut copier
+    # sinon faut copier TODO : mettre un check pour ça
     # Representation of a let. It changes the env with the new variable
     def __init__(self, code: str, env: env) -> None:
         self.code = code
@@ -236,47 +239,30 @@ class Elet(expr):
         self.varName: str = self.code[1].strip(' \n')
         self.varType: str = get_type(self.code[2])
 
-        # TODO : modifier le bypass en un simple rename
-        if isinstance(self.code[3], str) and self.code[3].strip(' \n') == 'nil':
-            self.middle = None
-            debug(
-                "WARN : cannot create null from nil [let " + self.varName+"]")
-            self.env.variables.append(var(self.varName, self.varType, self))
-            self.right = get_expr(self.code[4], self.env)
-            if isinstance(self.right, Eupdate):
-                debug(
-                    "WARN : making exception : found update in that let. It will not be done")
-                self.env.get_var(
-                    self.right.array.name).names.append(self.varName)
+        if isinstance(code[3], str) and code[3].strip(' \n') == 'nil':
+            raise Exception("E >> trying to assign null value")
+            # self.middle cannot be nil (we shall modify the pvs2ir code in that objective)
 
-            else:
-                raise Exception("E >> found let "+self.varName+" = null")
-        else:
-            self.middle = get_expr(self.code[3], self.env)
-            self.env = self.middle.env
-            self.env.variables.append(var(self.varName, self.varType, self))
-            self.right = get_expr(self.code[4], self.env)
+        self.middle = get_expr(self.code[3], self.env)
+        self.env = self.middle.env
+        self.env.variables.append(var(self.varName, self.varType, self))
+        self.right = get_expr(self.code[4], self.env)
 
         self.usedVars: list[var] = self.right.usedVars
-        if self.middle != None:
-            self.usedVars += self.middle.usedVars
+        self.usedVars += self.middle.usedVars
 
         debug("Elet : created let for variable " + self.varName)
 
     def toRust(self) -> str:
-        if self.middle == None:
-            # so we have an update to bypass:
-            output = self.right.array.name
+        v = self.env.get_var(self.varName)
+        if v.mutable:
+            output = "{let mut "
         else:
-            v = self.env.get_var(self.varName)
-            if v.mutable:
-                output = "{let mut "
-            else:
-                output = "{let "
-            output += v.name + " : " + v.type
-            output += " = {" + self.middle.toRust()
-            output += '};\n'
-            output += self.right.toRust() + "}"
+            output = "{let "
+        output += v.name + " : " + v.type
+        output += " = {" + self.middle.toRust()
+        output += '};\n'
+        output += self.right.toRust() + "}"
         return output
 
 
@@ -391,8 +377,7 @@ class Eupdate(expr):
 
         self.array: expr = get_expr(self.code[1], self.env)
 
-        if isinstance(self.array, Evariable):
-            self.array.fromEnv.mutable = True
+        self.env.get_var(self.array.get_array_name()).mutable = True
 
         self.index: expr = get_expr(code[2], self.env)
         self.env = self.index.env
