@@ -15,6 +15,8 @@ OPERATOR_CORR = {"+": "+",
                  "<": "<"
                  }
 
+CONSTS = ['true', 'false'] # we may add user-declared consts in Evalue
+
 
 def get_type(t : str | list) -> str:
     # Get rust type from IR type string or array
@@ -108,10 +110,10 @@ class env:
         return output
 
 
-def get_expr(tabl: list[list | str] | str, env: env) -> expr:
+def get_expr(tabl: list[list | str] | str, env: env, name = "") -> expr:
     # From ['object', ...] to corresponding expr
-    if isinstance(tabl, str):
-        return Evalue(tabl, env)
+    if isinstance(tabl, str): # int bool etc
+        return Evalue(tabl, env, name)
     try:
         key = tabl[0]
         if not isinstance(key, str):  # handles cases such as [[ thing ]]
@@ -125,7 +127,7 @@ def get_expr(tabl: list[list | str] | str, env: env) -> expr:
     except:
         raise Exception("E >> error getting expr from : " + str(tabl))
 
-    if key == "lambda": return Efn(tabl, env)
+    if key == "lambda": return Efn(tabl, env, name)
     elif key == "let": return Elet(tabl, env)
     elif key == "if": return Eif(tabl, env)
     elif key == "release": return Erelease(tabl, env)
@@ -186,15 +188,25 @@ class Evariable(expr):
 
 class Evalue(expr):
     # Representation of a value sur as "123"
-    def __init__(self, code: str, env: env) -> None:
+    def __init__(self, code: str, env: env, name = "") -> None:
         self.code = code.strip(' \n')
         self.env = env
         self.usedVars: list[var] = []
+        self.name = name.strip(' \n')
+        global CONSTS
 
-        if not Evalue.isValue(self.code):
+        if not Evalue.isValue(self.code) and not self.code in CONSTS:
             raise Exception("E >> can't parse value : " + self.code)
 
-        debug("Evalue : returning value " + code)
+        if self.name != "": # we are declaring a const
+            if self.code.isdigit():
+                self.code = "const " + self.name + " : i32 = " + self.code + ";"
+            else:
+                self.code = "static " + self.name + " : &str = '" + self.code + "';"
+            CONSTS.append(self.name)
+            debug("Evalue : declaring const : " + self.code)
+        else:
+            debug("Evalue : returning value " + code)
 
     def isValue(arr) -> bool:
         return arr.isdigit()

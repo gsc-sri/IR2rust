@@ -20,8 +20,8 @@ if __name__ == "__main__":
     for fn in functions:
         name, code = fn.split("@")
         parsed = get_els_from_str(code)
-        rust += "#[allow(non_snake_case, dead_code)]\n"
-        rust += Efn(parsed[0], env(), name).toRust() + "\n\n"
+        rust += "#[allow(non_snake_case, dead_code, non_upper_case_globals)]\n"
+        rust += get_expr(parsed[0], env(), name).toRust() + "\n\n"
 
     fichier = open("out.rs", "w")
     fichier.write(rust)

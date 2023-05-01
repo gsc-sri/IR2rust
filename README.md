@@ -11,8 +11,9 @@ The input is the generated IR, with modifications (see example).
 Supports:
  - `let`, `lett`, `if`, `release`
  - Integers
- - Arrays : `lookup` & `update`
+ - Arrays : `lookup` & `update` in an optimized way
  - Lambda functions : `lambda`
+ - Enums
 
 
 ## TODO:
