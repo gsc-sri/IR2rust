@@ -1,3 +1,4 @@
+from language_types import *
 
 DEBUG = True
 
@@ -17,47 +18,6 @@ OPERATOR_CORR = {"+": "+",
 
 CONSTS = ['true', 'false'] # we may add user-declared consts in Evalue
 
-
-def get_type(t : str | list) -> str:
-    # Get rust type from IR type string or array
-    if isinstance(t, str):
-        t = t.strip(" \n")
-        if t == "mpq":
-            debug("W >> float found, trying integer")
-            return "i32"
-        elif t == "bool" or t == "boolean":
-            return "bool"
-        else:
-            print("W >> unknown type :", t, ", trying i32\n")
-            return "i32"
-            raise Exception("UKNW STR TYPE : " + t)
-    else:
-        if t[0] == "subrange":
-            if t[1] == '*':
-                return 'nat'
-            elif int(t[1]) >= 0:
-                return 'i32'  # posnat
-            else:
-                return 'i32'
-        elif t[0] == "->":
-            argtype = get_type(t[1])
-            outtype = get_type(t[2])
-            return "Box<dyn Fn(" + argtype + ") -> " + outtype + ">"
-        elif t[0] == "recordtype":
-            # TODO
-            raise Exception("E >> TODO")
-        elif t[0] == "array":
-            arrayType = get_type(t[1])
-            size, high = t[2].strip(' \n[]').split("/")
-            return "Rc<[" + arrayType + "; " + size + "]>"
-        elif t[1].strip(' \n') == ":":
-            # custom type
-            return get_type(t[2])  # we try to guess the custom type
-        else:
-            raise Exception("E >> UKWN TYPE : ", t)
-
-
-#### LANGUAGE ####
 
 class expr:
     # abstract class for expressions (= everything)
@@ -133,7 +93,13 @@ def get_expr(tabl: list[list | str] | str, env: env, name = "") -> expr:
     elif key == "release": return Erelease(tabl, env)
     elif key == "lett": return Elett(tabl, env)
     elif key == "lookup": return Elookup(tabl, env)
-    elif key == "update": return Eupdate(tabl, env)
+    elif key == "get": return Eget(tabl, env)
+    elif key == "update": 
+        if isArray(tabl[1]):
+            return Eupdate_array(tabl, env)
+        elif isRecordtype(tabl[1]):
+            return Eupdate_recordtype(tabl, env)
+        raise Exception("E >> cannot find right update expr for : " + str(tabl[1]))
     elif key in OPERATOR_CORR.keys(): return Eoperator(tabl, env)
     elif key[:4] == "ivar" or key == "last": return Evariable(tabl, env)
     else: return Eappication(tabl, env)
@@ -358,14 +324,6 @@ class Elookup(expr):
 
         debug("Elookup")
 
-    def get_array_name(self):
-        if isinstance(self.var, Evariable):
-            return self.var.fromEnv.name
-        elif isinstance(self.var, Elookup):
-            return self.var.get_array_name()
-        else:
-            raise Exception("E >> lookup var is neither Evariable or Elookup")
-
     def toRust(self) -> str:
         # the clone is only of ref so not a big deal
         return self.var.toRust() + "[" + self.index.toRust() + " as usize].clone()"
@@ -380,8 +338,22 @@ class Elookup(expr):
         else:
             raise Exception("E >> Left hand side array is neither lookup or variable")
 
+class Eget(expr):
+    def __init__(self, code: str | list, env=[]) -> None:
+        self.code = code
+        self.env = env
 
-class Eupdate(expr):
+        self.recordtype : expr = get_expr(self.code[1], self.env)
+        self.index : str = code[2].strip(" \n")
+
+        self.usedVars: list[var] = self.recordtype.usedVars 
+
+        debug("Eget : " + self.recordtype.toRust())
+
+    def toRust(self) -> str:
+        return self.recordtype.toRust() + "." + self.index
+
+class Eupdate_array(expr):
     # Update of an array
     def __init__(self, code: str, env: env) -> None:
         self.code = code
@@ -389,7 +361,7 @@ class Eupdate(expr):
 
         self.array: expr = get_expr(self.code[1], self.env)
 
-        self.env.get_var(self.array.get_array_name()).mutable = True
+        self.env.get_var(Eupdate_array.get_array_name(self.array)).mutable = True
 
         self.index: expr = get_expr(code[2], self.env)
         self.env = self.index.env
@@ -400,12 +372,50 @@ class Eupdate(expr):
 
         debug("Eupdate : array " + self.array.toRust())
 
+    def get_array_name(e : expr):
+        if isinstance(e, Evariable):
+            return e.fromEnv.name
+        elif isinstance(e, Elookup):
+            return Eupdate_array.get_array_name(e.var)
+        else:
+            raise Exception("E >> lookup var is neither Evariable or Elookup")
+
     def toRust(self) -> str:
         if isinstance(self.array, Elookup):
             output = "(*Rc::make_mut(&mut " + self.array.lhsToRust() + "))["+ self.index.toRust() +" as usize] = "
         else:
             output = "(*Rc::make_mut(&mut " + self.array.toRust() + "))["+ self.index.toRust() +" as usize] = "
-        output += self.value.toRust() +"; " + self.array.get_array_name()  
+        output += self.value.toRust() +"; " + Eupdate_array.get_array_name(self.array)  # no clone : A normal forn
+        return output
+    
+class Eupdate_recordtype(expr):
+    def __init__(self, code: str | list, env=[]) -> None:
+        self.code = code
+        self.env = env
+
+        self.recordtype : expr = get_expr(self.code[1], self.env)
+        self.env.get_var(Eupdate_recordtype.get_recordtype_name(self.recordtype)).mutable = True
+
+        self.index : str = code[2].strip(" \n")
+        self.value : expr = get_expr(code[3], self.env)
+        self.env = self.value.env
+
+
+        self.usedVars: list[var] = self.recordtype.usedVars + self.value.usedVars
+
+        debug("Eupdate : recordtype " + self.recordtype.toRust())
+
+    def get_recordtype_name(e : expr):
+        if isinstance(e, Evariable):
+            return e.fromEnv.name
+        elif isinstance(e, Eget):
+            return Eupdate_recordtype.get_recordtype_name(e.var)
+        else:
+            raise Exception("E >> get var is neither Evariable or Eget")
+
+    def toRust(self) -> str:
+        output = self.recordtype.toRust() + "." + self.index + " = " + self.value.toRust() 
+        output += "; " + self.recordtype.toRust()
         return output
 
 class Eoperator(expr):

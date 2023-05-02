@@ -14,14 +14,16 @@ if __name__ == "__main__":
     src = fichier.read()
     fichier.close()
 
-    rust = "use std::rc::Rc\n\n"
-
+    header = "use std::rc::Rc\n\n"
+    rust = ""
     functions = src.split("$")
     for fn in functions:
         name, code = fn.split("@")
         parsed = get_els_from_str(code)
         rust += "#[allow(non_snake_case, dead_code, non_upper_case_globals)]\n"
         rust += get_expr(parsed[0], env(), name).toRust() + "\n\n"
+
+    rust = header + getTypeDecl() + "\n\n" + rust
 
     fichier = open("out.rs", "w")
     fichier.write(rust)

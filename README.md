@@ -14,6 +14,10 @@ Supports:
  - Arrays : `lookup` & `update` in an optimized way
  - Lambda functions : `lambda`
  - Enums
+ - Recordtypes
+
+ To be implemented:
+ - Uninterpreted types (going with generic types)
 
 
 ## TODO:
@@ -40,15 +44,6 @@ fn appl__appl<T : 'static>(f : Box<dyn Fn(T) -> T>) -> Box<dyn Fn(T) -> T>{
 ### Handle datatypes
 TBD
 Not actually handled in C
-
-### Handle recordtypes :
-
-```
-  (recordtype
-      ((=> (project_1 project_192) (subrange 0 * nil nil))
-       (=> (project_2 project_293) (subrange 0 * nil nil))))
-```
-where project_* are projections from tuples
 
 ### Improve horrible perfs : done
 
