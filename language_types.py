@@ -24,7 +24,7 @@ def create_type(name : str, code : str | list) -> None:
         out += "}"
     else:
         rhs = get_type(code)
-        out = "type " + name + " = " + rhs + ";\n"
+        out = "#[allow(non_camel_case_types)]\ntype " + name + " = " + rhs + ";\n"
 
     TYPE_DECLARATIONS += out + "\n"
 
@@ -67,7 +67,6 @@ def get_type(t : str | list) -> str:
                 return name
         else:
             raise Exception("E >> UKWN TYPE : ", t)
-
 
 
 def isArray(code):

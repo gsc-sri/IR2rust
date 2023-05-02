@@ -34,7 +34,7 @@ class expr:
 
 class var:
     # Represents a variable of the env
-    def __init__(self, name: str, type: str, scope: expr, isArg = False) -> None:
+    def __init__(self, name: str, type: str, scope: expr, rawType : str | list, isArg = False) -> None:
         self.name: str = name
         self.names: list[str] = [name]
         self.type: str = type
@@ -42,6 +42,7 @@ class var:
         self.scope: expr = scope # Not used rn but may be for better memory management
         self.mutable: bool = False
         self.isArg: bool = isArg
+        self.rawType : str | list = rawType # used sometimes
 
     def __str__(self) -> str:
         return "VAR " + self.name + " arg " + str(self.isArg) + " mut " + str(self.mutable)
@@ -94,12 +95,7 @@ def get_expr(tabl: list[list | str] | str, env: env, name = "") -> expr:
     elif key == "lett": return Elett(tabl, env)
     elif key == "lookup": return Elookup(tabl, env)
     elif key == "get": return Eget(tabl, env)
-    elif key == "update": 
-        if isArray(tabl[1]):
-            return Eupdate_array(tabl, env)
-        elif isRecordtype(tabl[1]):
-            return Eupdate_recordtype(tabl, env)
-        raise Exception("E >> cannot find right update expr for : " + str(tabl[1]))
+    elif key == "update": return Eupdate(tabl, env)
     elif key in OPERATOR_CORR.keys(): return Eoperator(tabl, env)
     elif key[:4] == "ivar" or key == "last": return Evariable(tabl, env)
     else: return Eappication(tabl, env)
@@ -223,7 +219,7 @@ class Elet(expr):
 
         self.middle = get_expr(self.code[3], self.env)
         self.env = self.middle.env
-        self.env.variables.append(var(self.varName, self.varType, self))
+        self.env.variables.append(var(self.varName, self.varType, self, self.code[2]))
         self.right = get_expr(self.code[4], self.env)
 
         self.usedVars: list[var] = self.right.usedVars
@@ -352,71 +348,87 @@ class Eget(expr):
 
     def toRust(self) -> str:
         return self.recordtype.toRust() + "." + self.index + ".clone()"
+    
+    def lhsToRust(self) -> str:
+        return self.recordtype.toRust() + "." + self.index
 
-class Eupdate_array(expr):
-    # Update of an array
-    def __init__(self, code: str, env: env) -> None:
-        self.code = code
-        self.env = env
+class Eupdate(expr):
+    def __init__(self, code: str | list, env=[]) -> None:
+        self.code : str = code
+        self.env : str | list = env
 
-        self.array: expr = get_expr(self.code[1], self.env)
+        self.lhs : expr = get_expr(self.code[1], self.env)
+        self.env = self.lhs.env
 
-        self.env.get_var(Eupdate_array.get_array_name(self.array)).mutable = True
+        # self.lhs peut etre get lookup var (array ou record type)
+        self.lhsType : str = Eupdate.arrayOrRecord(self.lhs) # "recordtype" ou "array"
 
-        self.index: expr = get_expr(code[2], self.env)
-        self.env = self.index.env
-        self.value: expr = get_expr(code[3], self.env)
-        self.env = self.value.env
+        if self.lhsType == "array":
+            self.env.get_var(Eupdate.get_array_name(self.lhs)).mutable = True
+            self.index: expr = get_expr(code[2], self.env)
+            self.env = self.index.env
+            self.value: expr = get_expr(code[3], self.env)
+            self.env = self.value.env
 
-        self.usedVars: list[var] = self.array.usedVars + self.index.usedVars + self.value.usedVars
+            self.usedVars: list[var] = self.lhs.usedVars + self.index.usedVars + self.value.usedVars
+            debug("Eupdate : array " + self.lhs.toRust())
 
-        debug("Eupdate : array " + self.array.toRust())
+        elif self.lhsType == "recordtype":
+            self.env.get_var(Eupdate.get_recordtype_name(self.lhs)).mutable = True
+            self.index : str = code[2].strip(" \n")
+            self.value : expr = get_expr(code[3], self.env)
+            self.env = self.value.env
+
+            self.usedVars: list[var] = self.lhs.usedVars + self.value.usedVars
+            debug("Eupdate : recordtype " + self.lhs.toRust())
+
+        else:
+            raise Exception()
 
     def get_array_name(e : expr):
         if isinstance(e, Evariable):
             return e.fromEnv.name
         elif isinstance(e, Elookup):
-            return Eupdate_array.get_array_name(e.var)
+            return Eupdate.get_array_name(e.var)
         else:
             raise Exception("E >> lookup var is neither Evariable or Elookup")
-
-    def toRust(self) -> str:
-        if isinstance(self.array, Elookup):
-            output = "(*Rc::make_mut(&mut " + self.array.lhsToRust() + "))["+ self.index.toRust() +" as usize] = "
-        else:
-            output = "(*Rc::make_mut(&mut " + self.array.toRust() + "))["+ self.index.toRust() +" as usize] = "
-        output += self.value.toRust() +"; " + Eupdate_array.get_array_name(self.array)  # no clone : A normal forn
-        return output
-    
-class Eupdate_recordtype(expr):
-    def __init__(self, code: str | list, env=[]) -> None:
-        self.code = code
-        self.env = env
-
-        self.recordtype : expr = get_expr(self.code[1], self.env)
-        self.env.get_var(Eupdate_recordtype.get_recordtype_name(self.recordtype)).mutable = True
-
-        self.index : str = code[2].strip(" \n")
-        self.value : expr = get_expr(code[3], self.env)
-        self.env = self.value.env
-
-
-        self.usedVars: list[var] = self.recordtype.usedVars + self.value.usedVars
-
-        debug("Eupdate : recordtype " + self.recordtype.toRust())
 
     def get_recordtype_name(e : expr):
         if isinstance(e, Evariable):
             return e.fromEnv.name
         elif isinstance(e, Eget):
-            return Eupdate_recordtype.get_recordtype_name(e.var)
+            return Eupdate.get_recordtype_name(e.recordtype)
         else:
             raise Exception("E >> get var is neither Evariable or Eget")
 
-    def toRust(self) -> str:
-        output = self.recordtype.toRust() + "." + self.index + " = " + self.value.toRust() 
-        output += "; " + self.recordtype.toRust()
+    def arrayOrRecord(code: expr) -> str:
+        if isinstance(code, Evariable):
+            rawType = code.fromEnv.rawType
+            if isArray(rawType) : return "array"
+            elif isRecordtype(rawType) : return "recordtype"
+            else : raise Exception("E >> lhs of update is neither array or record, but " + str(rawType))
+        elif isinstance(code, Eget):
+            return Eupdate.arrayOrRecord(code.recordtype)
+        elif isinstance(code, Elookup):
+            return Eupdate.arrayOrRecord(code.var)
+        else:
+            raise Exception("E >> cannot determine code if element is neither var, lookup or get")
+
+    def toRust(self):
+        if self.lhsType == "array":
+            if not isinstance(self.lhs, Evariable): #get ou lookup
+                output = "(*Rc::make_mut(&mut " + self.lhs.lhsToRust() + "))["+ self.index.toRust() +" as usize] = "
+            else:
+                output = "(*Rc::make_mut(&mut " + self.lhs.toRust() + "))["+ self.index.toRust() +" as usize] = "
+            output += self.value.toRust() +"; " + Eupdate.get_array_name(self.lhs)  # no clone : A normal forn  
+        elif self.lhsType == "recordtype":
+            if not isinstance(self.lhs, Evariable): #get ou lookup
+                output = self.lhs.lhsToRust() + "." + self.index + " = " + self.value.toRust() 
+            else:
+                output = self.lhs.toRust() + "." + self.index + " = " + self.value.toRust() 
+            output += "; " + Eupdate.get_recordtype_name(self.lhs)
         return output
+
 
 class Eoperator(expr):
     # Representation of an operator, which is some functions (see OPERATOR_CORR)
@@ -484,7 +496,7 @@ class Efn(expr):
         self.type = ""
         self.firstLevel = name != ""
 
-        self.args = []  # [[name, type]]
+        self.args = []  # [[name, type, rawType]]
         self.outtype = ""
         self.body = None
         self.env = env
@@ -495,7 +507,7 @@ class Efn(expr):
             vari.used = True
 
         for arg in self.args:
-            self.env.variables.append(var(arg[0], arg[1], self, True))
+            self.env.variables.append(var(arg[0], arg[1], self, arg[2], True))
 
         self.body: expr = get_expr(self.body, self.env)
         self.env = self.body.env
@@ -520,7 +532,7 @@ class Efn(expr):
         for var in self.code[1]:
             v = var[0]
             t = get_type(var[1])
-            self.args.append([v.strip(' \n'), t.strip(' \n')])
+            self.args.append([v.strip(' \n'), t.strip(' \n'), var[1]])
         self.outtype = get_type(self.code[3])
         self.body = self.code[4]
 
