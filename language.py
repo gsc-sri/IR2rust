@@ -493,7 +493,6 @@ class Efn(expr):
     def __init__(self, code: str, env: env, name="") -> None:
         self.code = code
         self.name = name
-        self.type = ""
         self.firstLevel = name != ""
 
         self.args = []  # [[name, type, rawType]]
@@ -508,6 +507,8 @@ class Efn(expr):
 
         for arg in self.args:
             self.env.variables.append(var(arg[0], arg[1], self, arg[2], True))
+            self.env.get_var(arg[0]).names.append(arg[3])
+            self.env.get_var(arg[0]).name = arg[3]
 
         self.body: expr = get_expr(self.body, self.env)
         self.env = self.body.env
@@ -527,35 +528,27 @@ class Efn(expr):
             return False
 
     def parse(self):
-        #try:
         assert (Efn.isFn(self.code))
         for var in self.code[1]:
             v = var[0]
             t = get_type(var[1])
-            self.args.append([v.strip(' \n'), t.strip(' \n'), var[1]])
+            self.args.append([v.strip(' \n'), t.strip(' \n'), var[1], var[2].strip(' \n')])
         self.outtype = get_type(self.code[3])
         self.body = self.code[4]
-
-        self.type = "Box<impl Fn("
-        for arg in self.args:
-            self.type += arg[1] + ','
-        self.type = self.type.strip(',') + ") -> " + self.outtype + '>'
-        #except:
-        #    raise Exception("E >> can't parse fn : " + str(self.code))
 
     def toRust(self):
         if self.firstLevel:  # we are at the base level
             output = "fn " + self.name + "("
             for arg in self.args:
                 if self.env.get_var(arg[0]).mutable: output += "mut "
-                output += arg[0] + ": " + arg[1] + ","
+                output += arg[3] + ": " + arg[1] + ","
             output = output.strip(',') + ") -> " + self.outtype + '{'
             output += self.body.toRust() + '}'
         else:
             output = "Box::new(move |"
             for arg in self.args:
                 if self.env.get_var(arg[0]).mutable: output += "mut "
-                output += arg[0] + ": " + arg[1] + ","
+                output += arg[3] + ": " + arg[1] + ","
             output = output.strip(',') + "| -> " + self.outtype + '{'
             output += self.body.toRust() + '})'
         return output
