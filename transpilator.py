@@ -14,7 +14,7 @@ if __name__ == "__main__":
     src = fichier.read()
     fichier.close()
 
-    header = "use std::rc::Rc\n\n"
+    header = "use std::rc::Rc\nuse std::clone::Clone;\n\n"
     rust = ""
     functions = src.split("$")
     for fn in functions:

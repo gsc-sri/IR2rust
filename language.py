@@ -351,7 +351,7 @@ class Eget(expr):
         debug("Eget : " + self.recordtype.toRust())
 
     def toRust(self) -> str:
-        return self.recordtype.toRust() + "." + self.index
+        return self.recordtype.toRust() + "." + self.index + ".clone()"
 
 class Eupdate_array(expr):
     # Update of an array
@@ -515,21 +515,21 @@ class Efn(expr):
             return False
 
     def parse(self):
-        try:
-            assert (Efn.isFn(self.code))
-            for var in self.code[1]:
-                v = var[0]
-                t = get_type(var[1])
-                self.args.append([v.strip(' \n'), t.strip(' \n')])
-            self.outtype = get_type(self.code[3])
-            self.body = self.code[4]
+        #try:
+        assert (Efn.isFn(self.code))
+        for var in self.code[1]:
+            v = var[0]
+            t = get_type(var[1])
+            self.args.append([v.strip(' \n'), t.strip(' \n')])
+        self.outtype = get_type(self.code[3])
+        self.body = self.code[4]
 
-            self.type = "Box<impl Fn("
-            for arg in self.args:
-                self.type += arg[1] + ','
-            self.type = self.type.strip(',') + ") -> " + self.outtype + '>'
-        except:
-            raise Exception("E >> can't parse fn : " + str(self.code))
+        self.type = "Box<impl Fn("
+        for arg in self.args:
+            self.type += arg[1] + ','
+        self.type = self.type.strip(',') + ") -> " + self.outtype + '>'
+        #except:
+        #    raise Exception("E >> can't parse fn : " + str(self.code))
 
     def toRust(self):
         if self.firstLevel:  # we are at the base level

@@ -15,7 +15,7 @@ def getTypeDecl():
 def create_type(name : str, code : str | list) -> None:
     global TYPE_DECLARATIONS
     if isinstance(code, list) and isinstance(code[0], str) and code[0].strip(" \n") == "recordtype":
-        out = "struct " + name + "{\n"
+        out = "#[derive(Clone)]\nstruct " + name + "{\n"
         for arg in code[1]:
             assert(arg[0].strip(" \n") == "=>")
             ident, uniqueIdent = arg[1]
@@ -40,22 +40,22 @@ def get_type(t : str | list) -> str:
         else:
             raise Exception("E >> unknown type :", t, ", trying i32\n")
     else:
-        if t[0] == "subrange":
-            if t[1] == '*':
+        if t[0].strip(" \n") == "subrange":
+            if t[1].strip(" \n") == '*':
                 return 'nat'
             elif int(t[1]) >= 0:
                 return 'i32'  # posnat
             else:
                 return 'i32'
-        elif t[0] == "->":
+        elif t[0].strip(" \n") == "->":
             argtype = get_type(t[1])
             outtype = get_type(t[2])
             return "Box<dyn Fn(" + argtype + ") -> " + outtype + ">"
-        elif t[0] == "array":
+        elif t[0].strip(" \n") == "array":
             arrayType = get_type(t[1])
             size, high = t[2].strip(' \n[]').split("/")
             return "Rc<[" + arrayType + "; " + size + "]>"
-        elif t[1].strip(' \n') == ":":
+        elif isinstance(t[1], str) and t[1].strip(' \n') == ":":
             # custom type
             name = t[0].strip("\n")
             global CUSTOM_TYPES
