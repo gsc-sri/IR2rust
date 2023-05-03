@@ -230,13 +230,13 @@ class Elet(expr):
     def toRust(self) -> str:
         v = self.env.get_var(self.varName)
         if v.mutable:
-            output = "{let mut "
+            output = "let mut "
         else:
-            output = "{let "
+            output = "let "
         output += v.name + " : " + v.type
         output += " = {" + self.middle.toRust()
         output += '};\n'
-        output += self.right.toRust() + "}"
+        output += self.right.toRust()
         return output
 
 

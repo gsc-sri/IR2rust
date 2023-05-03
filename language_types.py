@@ -15,7 +15,7 @@ def getTypeDecl():
 def create_type(name : str, code : str | list) -> None:
     global TYPE_DECLARATIONS
     if isinstance(code, list) and isinstance(code[0], str) and code[0].strip(" \n") == "recordtype":
-        out = "#[derive(Clone)]\nstruct " + name + "{\n"
+        out = "#[allow(non_camel_case_types)]\n#[derive(Clone)]\nstruct " + name + "{\n"
         for arg in code[1]:
             assert(arg[0].strip(" \n") == "=>")
             ident, uniqueIdent = arg[1]

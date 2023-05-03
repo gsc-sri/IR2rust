@@ -42,8 +42,21 @@ fn appl__appl<T : 'static>(f : Box<dyn Fn(T) -> T>) -> Box<dyn Fn(T) -> T>{
 ```
 
 ### Handle datatypes
-TBD
-Not actually handled in C
+
+Starting with basic datatypes : 
+
+```PVS
+btree : DATATYPE
+BEGIN
+  leaf : leaf?
+  node(val : nat, left : btree, right : btree) : node?
+END btree
+```
+
+When used inside a theory, each field has:
+ - Accessors (`val()`, `left()` and `right()`; IR : `hello__btree_adt_val`)
+ - One constructor (`node(v,l,r)`; IR : `(hello__node hello__val hello__left hello__right)`)
+ - One recognizer (`leaf?`; IR : `(r_hello__leafp)`)
 
 ### Improve horrible perfs : done
 
@@ -125,3 +138,5 @@ sys     0m0.142s
  ```
  The allocation during the test takes very little time. 
 
+test 
+Dependent tuple: [x : A, y: B(x), C(x, y)], Dependent record: [# a: A, b : B(a),  c : C(a, b) #], Dependent function: [x: A -> B(x)]
