@@ -14,13 +14,12 @@ if __name__ == "__main__":
     src = fichier.read()
     fichier.close()
 
-    header = "use std::rc::Rc\nuse std::clone::Clone;\n\n"
+    header = "use std::rc::Rc\nuse std::clone::Clone;\n\n#[allow(non_snake_case, dead_code, non_upper_case_globals, non_camel_case_types)]\n\n"
     rust = ""
     functions = src.split("$")
     for fn in functions:
         name, code = fn.split("@")
         parsed = get_els_from_str(code)
-        rust += "#[allow(non_snake_case, dead_code, non_upper_case_globals)]\n"
         rust += get_expr(parsed[0], env(), name).toRust() + "\n\n"
 
     rust = header + getTypeDecl() + "\n\n" + rust
