@@ -7,6 +7,7 @@
 TYPE_DECLARATIONS = "" # will be modified by get_type to add type declaration
 # eg "type hello__bwaa_adt = i32;\n"
 CUSTOM_TYPES = [] # ["hello__pt", "hello__bwaa_adt"] 
+DATATYPES = []
 
 def getTypeDecl():
     global TYPE_DECLARATIONS
@@ -28,7 +29,7 @@ def create_type(name : str, code : str | list) -> None:
 
     TYPE_DECLARATIONS += out + "\n"
 
-def get_type(t : str | list) -> str:
+def get_type(t : str | list, rhs = False) -> str:
     # Get rust type from IR type string or array
     if isinstance(t, str):
         t = t.strip(" \n")
@@ -59,8 +60,14 @@ def get_type(t : str | list) -> str:
             # custom type
             name = t[0].strip("\n")
             global CUSTOM_TYPES
+            global DATATYPES
             if name in CUSTOM_TYPES:
                 return name
+            elif name in DATATYPES:
+                if rhs:
+                    return "Rc<dyn " + name + ">"
+                else:
+                    return "impl " + name
             else:
                 create_type(name, t[2])
                 CUSTOM_TYPES.append(name)
