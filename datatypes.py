@@ -21,24 +21,24 @@ class datatype:
             cname = constructor[1]
 
             # recognizer function
-            self.out += "fn " + self.name + "__recognize__" + cname + "p (&self) -> bool;\n"
+            self.out += "fn " + self.name + "__recognize__" + cname + "p (self : Rc<Self>) -> bool;\n"
             DATATYPE_FUNCTIONS.append(self.name + "__recognize__" + cname)
 
             # accessor functions
             for accessor in constructor[2:]:
-                self.out += "fn " + accessor[1] + "(&self) -> " + get_type(accessor[2], True) + ";\n"
+                self.out += "fn " + accessor[1] + "(self : Rc<Self>) -> " + get_type(accessor[2]) + ";\n"
                 DATATYPE_FUNCTIONS.append(self.name + "__" + accessor[1])
             
             # update functions
             for accessor in constructor[2:]:
                 self.out += "fn " + self.name + "__update__" + accessor[1] 
-                self.out += "(&mut self, "+ accessor[1] + " : " + get_type(accessor[2], True) +");\n"
+                self.out += "(self : Rc<Self>, "+ accessor[1] + " : " + get_type(accessor[2]) +") -> Rc<dyn "+ self.name +"> ;\n"
                 DATATYPE_FUNCTIONS.append(self.name + "__update__" + accessor[1])
 
         # ord function
-        self.out += "fn "+ self.name + "__" + "ord(&self) -> i32;\n"
+        self.out += "fn "+ self.name + "__" + "ord(self : Rc<Self>) -> i32;\n"
         DATATYPE_FUNCTIONS.append(self.name + "__" + "ord")
-        self.out += "}\n"
+        self.out += "}\n\n"
 
         # --- CONSTRUCTORS ---
         # These are functions outside trait because they make it bug # TODO : investigate
@@ -46,28 +46,28 @@ class datatype:
             cname = constructor[1]
             self.out += "fn " + self.name + "__" + cname + "("
             for accessor in constructor[2:]:
-                self.out += accessor[1] + " : " + get_type(accessor[2], True) + ",\n"
-            self.out += ") -> " + cname + "{\n"
+                self.out += accessor[1] + " : " + get_type(accessor[2]) + ",\n"
+            self.out += ") -> Rc<" + cname + "> {\nRc::new("
             self.out += cname + " {"
             for accessor in constructor[2:]:
                 self.out += accessor[1] + " : " + accessor[1] + ",\n"
-            self.out += "}\n}\n"
+            self.out += "})\n}\n\n"
             DATATYPE_FUNCTIONS.append(self.name + "__" + cname)
 
         # --- STRUCTS  ---
 
         for constructor in self.code:
-            self.out += "struct " + constructor[1] + " {\n"
+            self.out += "#[derive(Clone)]\nstruct " + constructor[1] + " {\n"
             for accessor in constructor[2:]:
-                self.out += accessor[1] + " : " + get_type(accessor[2], True) + ",\n"
-            self.out += "}\n"
+                self.out += accessor[1] + " : " + get_type(accessor[2]) + ",\n"
+            self.out += "}\n\n"
 
         # --- IMPLEMENTATIONS ---
 
         i = 1 # for ord
         for constructor in self.code:
             self.out += "impl " + self.name + " for " + constructor[1] + "{\n"
-            self.out += "fn "+ self.name + "__" +"ord(&self) -> i32 {" + str(i) + "}"
+            self.out += "fn "+ self.name + "__" +"ord(self : Rc<Self>) -> i32 {" + str(i) + "}"
             i += 1
             thisname = constructor[1]
 
@@ -76,14 +76,14 @@ class datatype:
 
                 # recognizer function
                 if cname == thisname:
-                    self.out += "fn " + self.name + "__recognize__" + cname + "p (&self) -> bool {true}\n"
+                    self.out += "fn " + self.name + "__recognize__" + cname + "p (self : Rc<Self>) -> bool {true}\n"
                 else :
-                    self.out += "fn " + self.name + "__recognize__" + cname + "p (&self) -> bool {false}\n"
+                    self.out += "fn " + self.name + "__recognize__" + cname + "p (self : Rc<Self>) -> bool {false}\n"
 
                 # accessor functions
                 if cname == thisname:
                     for accessor in constructor2[2:]:
-                        self.out += "fn " + accessor[1] + "(&self) -> " + get_type(accessor[2], True) + "{"
+                        self.out += "fn " + accessor[1] + "(self : Rc<Self>) -> " + get_type(accessor[2]) + "{"
                         self.out += "self." + accessor[1] 
                         if isinstance(accessor[2], list) and accessor[2][0] in DATATYPES:
                             self.out += ".clone()}\n"
@@ -92,21 +92,23 @@ class datatype:
                 else:
                     # Should never be called, if so we panic
                     for accessor in constructor2[2:]:
-                        self.out += "fn " + accessor[1] + "(&self) -> " + get_type(accessor[2], True) + "{panic!()}\n"
+                        self.out += "fn " + accessor[1] + "(self : Rc<Self>) -> " + get_type(accessor[2]) + "{panic!()}\n"
                 
                 # update functions
                 if cname == thisname:
                     for accessor in constructor2[2:]:
                         self.out += "fn " + self.name + "__update__" + accessor[1] 
-                        self.out += "(&mut self, "+ accessor[1] + " : " + get_type(accessor[2], True) +"){"
-                        self.out += "self." + accessor[1] + " = " + accessor[1] + ";}\n"
+                        self.out += "(self : Rc<Self>, "+ accessor[1] + " : " + get_type(accessor[2]) +") -> Rc<dyn "+ self.name +"> {"
+                        self.out += "let mut updated: Rc<"+ thisname +"> = self.clone();"
+                        self.out += "(*Rc::make_mut(&mut updated))."+ accessor[1] +" = "+ accessor[1] +";"
+                        self.out += "updated }\n"
                 else:
                     # Should not be called too
                     for accessor in constructor2[2:]:
                         self.out += "fn " + self.name + "__update__" + accessor[1] 
-                        self.out += "(&mut self, "+ accessor[1] + " : " + get_type(accessor[2], True) + "){panic!()}\n"
+                        self.out += "(self : Rc<Self>, "+ accessor[1] + " : " + get_type(accessor[2]) + ") -> Rc<dyn "+ self.name +"> {panic!()}\n"
 
-            self.out += "}\n"
+            self.out += "}\n\n"
 
 
     def toRust(self):
