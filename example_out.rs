@@ -1,146 +1,170 @@
 
 /// IR SRC :
 
-///smalltranspose__transpose_step
-///(lambda ((ivar_1
-///          (smalltranspose__square : (array (smalltranspose__line : (array (smalltranspose__nat32 : (subrange 0 4294967295 nil nil)) [99/99])) [99/99]))
-///          X)
-///         (ivar_2 (subrange 0 99 nil nil) i)
-///         (ivar_3 (subrange 1 100 nil nil) j))
-///  '->
-///  (smalltranspose__square : (array (smalltranspose__line : (array (smalltranspose__nat32 : (subrange 0 4294967295 nil nil)) [99/99])) [99/99]))
-///  (let ivar_4
-///    boolean
-///    (= (ivar_3 (subrange 1 100 nil nil) j) 100 nil)
-///    (if (ivar_4 boolean nil)
-///        (release
-///         ((ivar_3 (subrange 1 100 nil nil) j)
-///          (ivar_2 (subrange 0 99 nil nil) i))
-///         nil
-///         (last (ivar_1
-///                (smalltranspose__square : (array (smalltranspose__line : (array (smalltranspose__nat32 : (subrange 0 4294967295 nil nil)) [99/99])) [99/99]))
-///                X)))
-///      (let ivar_9
-///        (smalltranspose__square : (array (smalltranspose__line : (array (smalltranspose__nat32 : (subrange 0 4294967295 nil nil)) [99/99])) [99/99]))
-///        (let ivar_11
-///          (smalltranspose__nat32 : (subrange 0 4294967295 nil nil))
-///          (let ivar_16
-///            (smalltranspose__line : (array (smalltranspose__nat32 : (subrange 0 4294967295 nil nil)) [99/99]))
-///            (lookup (ivar_1
-///                     (smalltranspose__square : (array (smalltranspose__line : (array (smalltranspose__nat32 : (subrange 0 4294967295 nil nil)) [99/99])) [99/99]))
-///                     X)
-///                    (ivar_3 (subrange 1 100 nil nil) j))
-///            (lookup (last (ivar_16
-///                           (smalltranspose__line : (array (smalltranspose__nat32 : (subrange 0 4294967295 nil nil)) [99/99]))
-///                           nil))
-///                    (ivar_2 (subrange 0 99 nil nil) i)))
-///          (let ivar_12
-///            (smalltranspose__nat32 : (subrange 0 4294967295 nil nil))
-///            (let ivar_27
-///              (smalltranspose__line : (array (smalltranspose__nat32 : (subrange 0 4294967295 nil nil)) [99/99]))
-///              (lookup (ivar_1
-///                       (smalltranspose__square : (array (smalltranspose__line : (array (smalltranspose__nat32 : (subrange 0 4294967295 nil nil)) [99/99])) [99/99]))
-///                       X)
-///                      (ivar_2 (subrange 0 99 nil nil) i))
-///              (lookup (last (ivar_27
-///                             (smalltranspose__line : (array (smalltranspose__nat32 : (subrange 0 4294967295 nil nil)) [99/99]))
-///                             nil))
-///                      (ivar_3 (subrange 1 100 nil nil) j)))
-///            (let ivar_40
-///              (smalltranspose__square : (array (smalltranspose__line : (array (smalltranspose__nat32 : (subrange 0 4294967295 nil nil)) [99/99])) [99/99]))
-///              (update
-///               (lookup (last (ivar_1
-///                              (smalltranspose__square : (array (smalltranspose__line : (array (smalltranspose__nat32 : (subrange 0 4294967295 nil nil)) [99/99])) [99/99]))
-///                              X))
-///                       ((ivar_2 (subrange 0 99 nil nil) i)))
-///               (ivar_3 (subrange 1 100 nil nil) j)
-///               (last (ivar_11
-///                      (smalltranspose__nat32 : (subrange 0 4294967295 nil nil))
-///                      nil)))
-///              (update
-///               (lookup (last (ivar_40
-///                              (smalltranspose__square : (array (smalltranspose__line : (array (smalltranspose__nat32 : (subrange 0 4294967295 nil nil)) [99/99])) [99/99]))
-///                              nil))
-///                       ((ivar_3 (subrange 1 100 nil nil) j)))
-///               (ivar_2 (subrange 0 99 nil nil) i)
-///               (last (ivar_12
-///                      (smalltranspose__nat32 : (subrange 0 4294967295 nil nil))
-///                      nil))))))
-///        (let ivar_58
-///          (subrange 1 100 nil nil)
-///          (+ (last (ivar_3 (subrange 1 100 nil nil) j)) 1
-///             (rename
-///              (((ivar_51 (subrange 1 100 nil nil) nil) ivar_3
-///                (subrange 1 100 nil nil) j)
-///               ((ivar_57 (subrange 0 99 nil nil) nil) ivar_2
-///                (subrange 0 99 nil nil) i)
-///               ((ivar_56
-///                 (smalltranspose__square : (array (smalltranspose__line : (array (smalltranspose__nat32 : (subrange 0 4294967295 nil nil)) [99/99])) [99/99]))
-///                 nil)
-///                ivar_9
-///                (smalltranspose__square : (array (smalltranspose__line : (array (smalltranspose__nat32 : (subrange 0 4294967295 nil nil)) [99/99])) [99/99]))
-///                Y))
-///              in (subrange 2 101 nil nil)))
-///          (smalltranspose__transpose_step
-///           (last (ivar_9
-///                  (smalltranspose__square : (array (smalltranspose__line : (array (smalltranspose__nat32 : (subrange 0 4294967295 nil nil)) [99/99])) [99/99]))
-///                  Y))
-///           (last (ivar_2 (subrange 0 99 nil nil) i))
-///           (last (ivar_58 (subrange 1 100 nil nil) nil)) nil)))))
-///  nil)
+///DATATYPE btree_adt 
+///@(
+///(CONSTRUCTOR btree_adt__leaf)
+///(CONSTRUCTOR btree_adt__node
+///(ACCESSOR btree_adt__val (subrange 0 * nil nil))
+///(ACCESSOR btree_adt__left (btree_adt : adt-recordtype))
+///(ACCESSOR btree_adt__right (btree_adt : adt-recordtype))))
+///$hello__sum
+///@(lambda ((ivar_1 (btree_adt : adt-recordtype) a))
+///   '->
+///   (subrange 0 * nil nil)
+///   (let ivar_3
+///     bool
+///     (btree_adt__leafp (ivar_1 (btree_adt : adt-recordtype) a) nil)
+///     (if (ivar_3 bool nil)
+///         (release ((ivar_1 (btree_adt : adt-recordtype) a)) nil 0)
+///       (let ivar_7
+///         (subrange 0 * nil nil)
+///         (btree_adt__val (ivar_1 (btree_adt : adt-recordtype) a) nil)
+///         (last (ivar_7 (subrange 0 * nil nil) nil)))))
+///   nil)
 
 /// OUTPUT:
-use std::rc::Rc;
+#![allow(non_snake_case, dead_code, non_upper_case_globals, non_camel_case_types, unused_variables)]
 
-#[allow(non_snake_case, dead_code)]
-fn smalltranspose__transpose_step(
-    mut ivar_1: Rc<[Rc<[i32; SIZE]>; SIZE]>,
-    ivar_2: i32,
-    ivar_3: i32
-) -> Rc<[Rc<[i32; SIZE]>; SIZE]> {
-    {
-        let ivar_4: bool = { ivar_3 == SIZE as i32 };
-        if ivar_4 {
-            ivar_1
-        } else {
-            {
-                let ivar_9: Rc<[Rc<[i32; SIZE]>; SIZE]> = {
-                    {
-                        let ivar_11: i32 = {
-                            {
-                                let ivar_16: Rc<[i32; SIZE]> = { ivar_1[ivar_3 as usize].clone() };
-                                ivar_16[ivar_2 as usize].clone()
-                            }
-                        };
-                        {
-                            let ivar_12: i32 = {
-                                {
-                                    let ivar_27: Rc<[i32; SIZE]> = {
-                                        ivar_1[ivar_2 as usize].clone()
-                                    };
-                                    ivar_27[ivar_3 as usize].clone()
-                                }
-                            };
-                            {
-                                let mut ivar_40: Rc<[Rc<[i32; SIZE]>; SIZE]> = {
-                                    (*Rc::make_mut(
-                                        &mut (*Rc::make_mut(&mut ivar_1))[ivar_2 as usize]
-                                    ))[ivar_3 as usize] = ivar_11;
-                                    ivar_1
-                                };
-                                (*Rc::make_mut(
-                                    &mut (*Rc::make_mut(&mut ivar_40))[ivar_3 as usize]
-                                ))[ivar_2 as usize] = ivar_12;
-                                ivar_40
-                            }
-                        }
-                    }
-                };
-                {
-                    let ivar_58: i32 = { ivar_3 + 1 };
-                    smalltranspose__transpose_step(ivar_9, ivar_2, ivar_58)
-                }
-            }
-        }
+use std::rc::Rc;
+use std::clone::Clone;
+
+trait btree_adt {
+    fn btree_adt__leafp(self: Rc<Self>) -> bool;
+    fn btree_adt__nodep(self: Rc<Self>) -> bool;
+    fn btree_adt__val(self: Rc<Self>) -> i32;
+    fn btree_adt__left(self: Rc<Self>) -> Rc<dyn btree_adt>;
+    fn btree_adt__right(self: Rc<Self>) -> Rc<dyn btree_adt>;
+    fn btree_adt__val__update(self: Rc<Self>, btree_adt__val: i32) -> Rc<dyn btree_adt>;
+    fn btree_adt__left__update(
+        self: Rc<Self>,
+        btree_adt__left: Rc<dyn btree_adt>
+    ) -> Rc<dyn btree_adt>;
+    fn btree_adt__right__update(
+        self: Rc<Self>,
+        btree_adt__right: Rc<dyn btree_adt>
+    ) -> Rc<dyn btree_adt>;
+    fn btree_adt__ord(self: Rc<Self>) -> i32;
+}
+
+fn btree_adt__subterm(a: Rc<dyn btree_adt>, b: Rc<dyn btree_adt>) -> bool {
+    panic!("Subterm is not implemented yet")
+}
+
+fn btree_adt__doublelessp(a: Rc<dyn btree_adt>, b: Rc<dyn btree_adt>) -> bool {
+    panic!("<< is not implemented yet")
+}
+
+fn btree_adt__btree_adt__leaf() -> Rc<btree_adt__leaf> {
+    Rc::new(btree_adt__leaf {})
+}
+
+fn btree_adt__btree_adt__node(
+    btree_adt__val: i32,
+    btree_adt__left: Rc<dyn btree_adt>,
+    btree_adt__right: Rc<dyn btree_adt>
+) -> Rc<btree_adt__node> {
+    Rc::new(btree_adt__node {
+        btree_adt__val: btree_adt__val,
+        btree_adt__left: btree_adt__left,
+        btree_adt__right: btree_adt__right,
+    })
+}
+
+#[derive(Clone)]
+struct btree_adt__leaf {}
+
+#[derive(Clone)]
+struct btree_adt__node {
+    btree_adt__val: i32,
+    btree_adt__left: Rc<dyn btree_adt>,
+    btree_adt__right: Rc<dyn btree_adt>,
+}
+
+impl btree_adt for btree_adt__leaf {
+    fn btree_adt__ord(self: Rc<Self>) -> i32 {
+        1
+    }
+    fn btree_adt__leafp(self: Rc<Self>) -> bool {
+        true
+    }
+    fn btree_adt__nodep(self: Rc<Self>) -> bool {
+        false
+    }
+    fn btree_adt__val(self: Rc<Self>) -> i32 {
+        panic!()
+    }
+    fn btree_adt__left(self: Rc<Self>) -> Rc<dyn btree_adt> {
+        panic!()
+    }
+    fn btree_adt__right(self: Rc<Self>) -> Rc<dyn btree_adt> {
+        panic!()
+    }
+    fn btree_adt__val__update(self: Rc<Self>, btree_adt__val: i32) -> Rc<dyn btree_adt> {
+        panic!()
+    }
+    fn btree_adt__left__update(
+        self: Rc<Self>,
+        btree_adt__left: Rc<dyn btree_adt>
+    ) -> Rc<dyn btree_adt> {
+        panic!()
+    }
+    fn btree_adt__right__update(
+        self: Rc<Self>,
+        btree_adt__right: Rc<dyn btree_adt>
+    ) -> Rc<dyn btree_adt> {
+        panic!()
+    }
+}
+
+impl btree_adt for btree_adt__node {
+    fn btree_adt__ord(self: Rc<Self>) -> i32 {
+        2
+    }
+    fn btree_adt__leafp(self: Rc<Self>) -> bool {
+        false
+    }
+    fn btree_adt__nodep(self: Rc<Self>) -> bool {
+        true
+    }
+    fn btree_adt__val(self: Rc<Self>) -> i32 {
+        self.btree_adt__val
+    }
+    fn btree_adt__left(self: Rc<Self>) -> Rc<dyn btree_adt> {
+        self.btree_adt__left.clone()
+    }
+    fn btree_adt__right(self: Rc<Self>) -> Rc<dyn btree_adt> {
+        self.btree_adt__right.clone()
+    }
+    fn btree_adt__val__update(self: Rc<Self>, btree_adt__val: i32) -> Rc<dyn btree_adt> {
+        let mut updated: Rc<btree_adt__node> = self.clone();
+        (*Rc::make_mut(&mut updated)).btree_adt__val = btree_adt__val;
+        updated
+    }
+    fn btree_adt__left__update(
+        self: Rc<Self>,
+        btree_adt__left: Rc<dyn btree_adt>
+    ) -> Rc<dyn btree_adt> {
+        let mut updated: Rc<btree_adt__node> = self.clone();
+        (*Rc::make_mut(&mut updated)).btree_adt__left = btree_adt__left;
+        updated
+    }
+    fn btree_adt__right__update(
+        self: Rc<Self>,
+        btree_adt__right: Rc<dyn btree_adt>
+    ) -> Rc<dyn btree_adt> {
+        let mut updated: Rc<btree_adt__node> = self.clone();
+        (*Rc::make_mut(&mut updated)).btree_adt__right = btree_adt__right;
+        updated
+    }
+}
+
+fn hello__sum(a: Rc<dyn btree_adt>) -> i32 {
+    let ivar_3: bool = { a.clone().btree_adt__leafp() };
+    if ivar_3 {
+        0
+    } else {
+        let ivar_7: i32 = { a.clone().btree_adt__val() };
+        ivar_7
     }
 }

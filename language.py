@@ -1,4 +1,5 @@
 from language_types import *
+from datatypes import *
 
 DEBUG = True
 
@@ -466,6 +467,8 @@ class Eappication(expr):
         except:
             raise Exception("E >> error while parsing function: " + code)
 
+        self.isDatatype = self.name in DATATYPE_FUNCTIONS
+
         self.args: list[Evariable] = []
         for argCode in self.code[1:]:
             if not isinstance(argCode, str) or argCode.strip(' \n') != 'nil':
@@ -474,16 +477,25 @@ class Eappication(expr):
 
         self.usedVars: list[var] = [arg.usedVars for arg in self.args]
 
-        debug("Eapplication : application " + self.name)
+        debug("Eapplication : application " + self.name + " from dt " + str(self.isDatatype))
 
     def toRust(self) -> str:
-        output = self.name + "("
-        for arg in self.args:
-            if arg.isLast:
-                output += arg.toRust() + ','
-            else:
-                output += arg.toRust() + '.clone() ,'
-        output = output.strip(',') + ")"
+        if self.isDatatype:
+            output = self.args[0].toRust() + (".clone()" if not self.args[0].isLast else "") + "." + self.name + "("
+            for arg in self.args[1:]:
+                if arg.isLast:
+                    output += arg.toRust() + ','
+                else:
+                    output += arg.toRust() + '.clone() ,'
+            output = output.strip(',') + ")"
+        else:
+            output = self.name + "("
+            for arg in self.args:
+                if arg.isLast:
+                    output += arg.toRust() + ','
+                else:
+                    output += arg.toRust() + '.clone() ,'
+            output = output.strip(',') + ")"
         return output
 
 
