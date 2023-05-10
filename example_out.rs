@@ -1,4 +1,21 @@
 
+/// PVS SRC :
+
+///btree : DATATYPE
+///BEGIN
+///  leaf : leaf?
+///  node(val : nat, left : btree, right : btree) : node?
+///END btree
+///
+///hello : THEORY 
+///BEGIN
+///  IMPORTING btree
+///  sum(a:btree) : nat = CASES a OF 
+///                        leaf: 0,
+///                        node(v, l, r) : v
+///                      ENDCASES
+///END hello
+
 /// IR SRC :
 
 ///DATATYPE btree_adt 
