@@ -17,6 +17,12 @@ Supports:
  - Enums
  - Recordtypes
  - Datatypes (no reduce function)
+ - Primitives : 
+ ```PVS
+   = /= TRUE FALSE IMPLIES => ⇒ <=> ⇔ AND & ∧ OR ∨ NOT ¬ WHEN IFF + - * /
+   < <= > >= floor ceiling nrem ndiv even? odd? ```
+
+
 
  To be implemented:
  - Uninterpreted types (going with generic types)
@@ -25,3 +31,7 @@ Supports:
 Split files
 Implement uninterpreted types
 Handle subterm, << and reduce functions of datatypes
+Handle variable declaration in theory
+Handle crude recordtypes (use variable name as name ?)
+Handle forall & exists
+Handle prelude lists & more primitives

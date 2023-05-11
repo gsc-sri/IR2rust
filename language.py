@@ -8,13 +8,40 @@ def debug(c: str) -> None:
         print("DEBUG >> " + c)
 
 
-OPERATOR_CORR = {"+": "+",
-                 "-": "-",
-                 "*": "*",
-                 "/": "/",
-                 "nrem": "%",
-                 "=": "==",
-                 "<": "<"
+OPERATOR_CORR = {"+": "$1 + $2", 
+                 "-": "$1 - $2",     
+                 "*": "$1 * $2",     
+                 "/": "$1 / $2",
+                 "nrem": "$1 % $2",
+                 "=": "$1 == $2",
+                 "<": "$1 < $2",
+                 "/=": "$1 != $2",
+                 "ndiv": "$1 / $2",
+                 "<=": "$1 <= $2",
+                 ">": "$1 > $2",
+                 ">=": "$1 >= $2",
+                 "floor": "$1.floor()",
+                 "ceiling": "$1.ceiling",
+                 "ord": "0",
+                 "TRUE": "true",
+                 "FALSE": "false",
+                 "⇒": "!$1 || $2",
+                 "=>": "!$1 || $2",
+                 "IMPLIES": "!$1 || $2",
+                 "¬": "!$1",
+                 "NOT": "!$1",
+                 "∨": "$1 || $2",
+                 "OR": "$1 || $2",
+                 "∧": "$1 && $2",
+                 "&": "$1 && $2",
+                 "AND": "$1 && $2",
+                 "⇔": "($1 || !$2) && (!$1 ||  $2)",
+                 "<=>": "($1 || !$2) && (!$1 ||  $2)",
+                 "IFF": "($1 || !$2) && (!$1 ||  $2)",
+                 "WHEN": "$1 || !$2",
+                 "char?": "$1 < 114112", #dec of 0x110000
+                 "even?": "$1 % 2 == 0",
+                 "odd?": "$1 % 2 == 0",
                  }
 
 CONSTS = ['true', 'false'] # we may add user-declared consts in Evalue
@@ -437,21 +464,28 @@ class Eoperator(expr):
         self.code = code
         self.env = env
 
-        if not self.code[0].strip(' \n') in OPERATOR_CORR.keys():
-            raise Exception("E >> can't parse operation : " + self.code)
-        self.op = OPERATOR_CORR[code[0].strip(' \n')]
+        try:
+            self.op = OPERATOR_CORR[code[0].strip(' \n')]
+        except:
+            raise Exception("E >> Operation " + code[0].strip(' \n') + " not supported")
 
-        self.leftOp = get_expr(self.code[1], self.env)
-        self.env = self.leftOp.env
-        self.rightOp = get_expr(self.code[2], self.env)
-        self.env = self.rightOp.env
+        self.args: list[expr] = []
+        for c in self.code[1:]:
+            if not isinstance(c, str) or c.strip(' \n') != 'nil':
+                self.args.append(get_expr(c, self.env))
+                self.env = self.args[-1].env
+    
 
-        self.usedVars: list[var] = self.leftOp.usedVars + self.rightOp.usedVars
+        self.usedVars: list[var] = []
+        for arg in self.args:
+            self.usedVars += arg.usedVars 
 
         debug("Eoperator : operator " + self.op)
 
     def toRust(self) -> str:
-        return self.leftOp.toRust() + self.op + self.rightOp.toRust()
+        for i in range(len(self.args)):
+            self.op = self.op.replace("$" + str(i+1), self.args[i].toRust())
+        return self.op
 
 
 class Eappication(expr):
