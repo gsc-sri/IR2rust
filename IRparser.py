@@ -27,6 +27,7 @@ def str_till_cp(chaine):
 def get_els_from_str(chaine):
     #print("getting els from", chaine)
     chaine = chaine.replace("\n", " ")
+    chaine = chaine.replace("?", "qm")
 
     arr = []
     while len(chaine) > 1:

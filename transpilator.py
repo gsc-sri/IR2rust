@@ -9,13 +9,21 @@ from IRparser import *
 from language import *
 from datatypes import *
 
+header = """
+#![allow(non_snake_case, dead_code, non_upper_case_globals, non_camel_case_types, unused_variables)]
+
+use std::rc::Rc
+use std::clone::Clone;
+
+fn Rc_unwrap_or_clone<T : Clone>(rc : Rc<T>) -> T{
+    Rc::try_unwrap(rc).unwrap_or_else(|rc| (*rc).clone())
+}"""
 
 if __name__ == "__main__":
     fichier = open("IR.lisp", 'r')
     src = fichier.read()
     fichier.close()
 
-    header = "#![allow(non_snake_case, dead_code, non_upper_case_globals, non_camel_case_types, unused_variables)]\n\nuse std::rc::Rc\nuse std::clone::Clone;\n\n"
     rust = ""
     functions = src.split("$")
     for fn in functions:
