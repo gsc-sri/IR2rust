@@ -17,7 +17,8 @@ use std::clone::Clone;
 
 fn Rc_unwrap_or_clone<T : Clone>(rc : Rc<T>) -> T{
     Rc::try_unwrap(rc).unwrap_or_else(|rc| (*rc).clone())
-}"""
+}
+"""
 
 if __name__ == "__main__":
     fichier = open("IR.lisp", 'r')

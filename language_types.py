@@ -20,20 +20,9 @@ def create_type(name : str, code : str | list) -> None:
     global TYPE_DECLARATIONS
     global CUSTOM_TYPES
 
-    # --- RECORD ---
-    if isinstance(code, list) and isinstance(code[0], str) and code[0].strip(" \n") == "recordtype":
-        rec = record(code, name)
-
-        out = "#[derive(Clone)]\nstruct " + name + "{\n"
-        for field in rec.fields:
-            out += field[0] + " : " + field[1] + ",\n"
-        out += "}"
-
-    # --- TYPE ---
-    else:
-        rhs = get_type(code)
-        out = "type " + name + " = " + rhs + ";\n"
-        CUSTOM_TYPES.append(name)
+    rhs = get_type(code)
+    out = "type " + name + " = " + rhs + ";\n"
+    CUSTOM_TYPES.append(name)
 
     TYPE_DECLARATIONS += out + "\n"
 
@@ -59,6 +48,14 @@ class record:
                     return
             # We are not in RECORDS
             self.name = "record_" + str(len(RECORDS))
+
+            global TYPE_DECLARATIONS
+            out = "#[derive(Clone)]\nstruct " + self.name + "{\n"
+            for field in self.fields:
+                out += field[0] + " : " + field[1] + ",\n"
+            out += "}\n"
+            TYPE_DECLARATIONS += out
+
         # else no problem a name has been given
 
     def __eq__(self, code : list): # TODO : improve with use of self.fields
