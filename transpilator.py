@@ -30,9 +30,10 @@ if __name__ == "__main__":
         name, code = fn.split("@")
         print(name)
         if "DATATYPE " in name:
+            th = name.split(" ")[3].strip(" \n")
             name = name.split(" ")[1]
             parsed = get_els_from_str(code)
-            rust += datatype(parsed, name).toRust()
+            rust += datatype(parsed, name, th).toRust()
             isDatatype = True
         else:
             isDatatype = False

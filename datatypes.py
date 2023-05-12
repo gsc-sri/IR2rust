@@ -4,9 +4,10 @@ DATATYPE_FUNCTIONS = []
 # [ "btree_adt__recognize__leafp", ... ]
 
 class datatype:
-    def __init__(self, code, name) -> None:
+    def __init__(self, code, name, theory) -> None:
         self.code : list = code
         self.name : str = name
+        self.theory : str = theory
         self.out : str = ""
         global DATATYPES
         DATATYPES.append(name)
@@ -22,19 +23,19 @@ class datatype:
             cname = constructor[1]
 
             # recognizer function
-            self.out += "fn " + cname + "p (self : Self) -> bool;\n"
-            DATATYPE_FUNCTIONS.append(cname + "p")
+            self.out += "fn " + self.theory + "__" + cname + "p (self : Self) -> bool;\n"
+            DATATYPE_FUNCTIONS.append(self.theory + "__" + cname + "p")
 
             # accessor functions
             for accessor in constructor[2:]:
-                self.out += "fn " + accessor[1] + "(self : Self) -> " + get_type(accessor[2]) + ";\n"
-                DATATYPE_FUNCTIONS.append(accessor[1])
+                self.out += "fn " + self.name + "__" + accessor[1] + "(self : Self) -> " + get_type(accessor[2]) + ";\n"
+                DATATYPE_FUNCTIONS.append(self.name + "__" + accessor[1])
             
             # update functions
             for accessor in constructor[2:]:
-                self.out += "fn " + accessor[1] + "__update" 
+                self.out += "fn " + self.name + "__" + accessor[1] + "__update" 
                 self.out += "(self : Self, "+ accessor[1] + " : " + get_type(accessor[2]) +") -> "+ self.name +" ;\n"
-                DATATYPE_FUNCTIONS.append(accessor[1] + "__update" )
+                DATATYPE_FUNCTIONS.append(self.name + "__" + accessor[1] + "__update" )
 
             # constructors
             self.out += "fn " + self.name + "__" + cname + "("
@@ -75,16 +76,16 @@ class datatype:
             cname = constructor[1]
 
             # recognizer function
-            self.out += "fn " + cname + "p (self : Self) -> bool {self.is__"+ cname +"}\n"
+            self.out += "fn " + self.theory + "__" + cname + "p (self : Self) -> bool {self.is__"+ cname +"}\n"
 
             # accessor functions
             for accessor in constructor[2:]:
-                self.out += "fn " + accessor[1] + "(self : Self) -> " + get_type(accessor[2]) + "{\n"
+                self.out += "fn " + self.name + "__" + accessor[1] + "(self : Self) -> " + get_type(accessor[2]) + "{\n"
                 self.out += "Rc_unwrap_or_clone(self."+ accessor[1] +".unwrap())}\n"
             
             # update functions
             for accessor in constructor[2:]:
-                self.out += "fn " + accessor[1] + "__update" 
+                self.out += "fn " + self.name + "__" + accessor[1] + "__update" 
                 self.out += "(self : Self, "+ accessor[1] + " : " + get_type(accessor[2]) +") -> "+ self.name +" {\n"
                 self.out += "let mut updated = self.clone();\n"
                 self.out += "updated."+ accessor[1] +" = Some(Rc::new("+ accessor[1] +"));updated\n}\n"
