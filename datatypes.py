@@ -19,6 +19,7 @@ class datatype:
 
         # --- TRAIT CONSTRUCTION ---
         self.out += "trait " + self.name + "_trait {"
+        i = 0
         for constructor in self.code:
             cname = constructor[1]
 
@@ -42,54 +43,68 @@ class datatype:
             for accessor in constructor[2:]:
                 self.out += accessor[1] + " : " + get_type(accessor[2]) + ","
             self.out += ") -> " + self.name + " {\n"
-            self.out += self.name + "{\n"
-            for cons2 in self.code:
-                c2name = cons2[1]
-                if c2name == cname:
-                    self.out += "is__" + cname + " : true,\n"
-                    for accessor in cons2[2:]:
-                        self.out += accessor[1] + " : Some(Rc::new(" + accessor[1] + ")),\n"
-                else :
-                    self.out += "is__" + c2name + " : false,\n"
-                    for accessor in cons2[2:]:
-                        self.out += accessor[1] + " : None,\n"
-            self.out += "}\n}\n"
+            self.out += self.name + " {\n"
+            self.out += "ord : " + str(i) + ",\n"
+            i += 1
+            self.out += "data : Rc::new(" + cname + "{"
+            for accessor in constructor[2:]:
+                self.out += accessor[1] + " : " + accessor[1] + ",\n"
+            self.out += "})\n}\n}\n"
             DATATYPE_FUNCTIONS.append(self.name + "__" + cname)
 
         self.out += "}\n\n"
 
-        # --- STRUCT  ---
+        # --- STRUCTS  ---
 
-        self.out += "#[derive(Clone, PartialEq, Debug)]\nstruct "
+        self.out += "#[derive(Clone, Debug)]\nstruct "
         self.out += self.name + " {\n"
+        self.out += "ord : i32,\n data : Rc<dyn Any>\n}"
+
         for constructor in self.code:
-            self.out += "is__" + constructor[1] + " : bool,\n"
+            self.out += "#[derive(Clone, PartialEq, Debug)]\n"
+            self.out += "struct " + constructor[1] + " {\n"
             for accessor in constructor[2:]:
-                self.out += accessor[1] + " : Option<Rc<" + get_type(accessor[2]) + ">>,\n}\n\n"
+                self.out += accessor[1] + " : " + get_type(accessor[2]) + ",\n"
+            self.out += "}\n\n"
         
 
-        # --- IMPLEMENTATION ---
+        # --- IMPLEMENTATIONS ---
 
+        # PartialEq for our main trait
+        self.out += "impl PartialEq for " + self.name + " {\nfn eq(&self, other: &Self) -> bool {\n"
+        self.out += "if self.ord == other.ord {"
+        i = 0
+        for constructor in self.code:
+            self.out += "if self.ord == " + str(i) + " {\n"
+            self.out += "return Rc::downcast::<"+constructor[1]+">(self.data.clone()).unwrap() == Rc::downcast::<"+constructor[1]+">(other.data.clone()).unwrap()}\n"
+            i+=1
+        self.out += "}\nfalse}\n}\n\n"
+
+
+        # our trait for out object
         self.out += "impl " + self.name + "_trait for " + self.name + "{\n"
+        i = 0
         for constructor in self.code:
             
             cname = constructor[1]
 
             # recognizer function
-            self.out += "fn " + self.theory + "__" + cname + "p (self : Self) -> bool {self.is__"+ cname +"}\n"
+            self.out += "fn " + self.theory + "__" + cname + "p (self : Self) -> bool {self.ord == "+ str(i) +"}\n"
+            
 
             # accessor functions
             for accessor in constructor[2:]:
                 self.out += "fn " + self.name + "__" + accessor[1] + "(self : Self) -> " + get_type(accessor[2]) + "{\n"
-                self.out += "Rc_unwrap_or_clone(self."+ accessor[1] +".unwrap())}\n"
+                self.out += "Rc_unwrap_or_clone(Rc::downcast::<"+ constructor[1] +">(self.data).unwrap())." + accessor[1] + "}\n"
             
             # update functions
             for accessor in constructor[2:]:
                 self.out += "fn " + self.name + "__" + accessor[1] + "__update" 
                 self.out += "(self : Self, "+ accessor[1] + " : " + get_type(accessor[2]) +") -> "+ self.name +" {\n"
-                self.out += "let mut updated = self.clone();\n"
-                self.out += "updated."+ accessor[1] +" = Some(Rc::new("+ accessor[1] +"));updated\n}\n"
-
+                self.out += "let mut updated = Rc::downcast::<"+ constructor[1] +">(self.data).unwrap();\n"
+                self.out += "Rc::make_mut(&mut updated)." + accessor[1] + " = " + accessor[1] + ";\n"
+                self.out += self.name + " { ord: " + str(i) + ", data : updated}\n}\n "
+            i += 1
         self.out += "}\n\n"
 
 

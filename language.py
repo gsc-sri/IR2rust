@@ -469,13 +469,16 @@ class Eoperator(expr):
         except:
             raise Exception("E >> Operation " + code[0].strip(' \n') + " not supported")
 
-        self.args: list[expr] = []
-        for c in self.code[1:]:
-            if not isinstance(c, str) or c.strip(' \n') != 'nil':
-                self.args.append(get_expr(c, self.env))
-                self.env = self.args[-1].env
-    
+        self.nbArgs = 0
+        while "$" + str(self.nbArgs +1) in self.op:
+            self.nbArgs+=1
 
+        self.args: list[expr] = []
+        for i in range(self.nbArgs):
+            c = self.code[i + 1]
+            self.args.append(get_expr(c, self.env))
+            self.env = self.args[-1].env
+            
         self.usedVars: list[var] = []
         for arg in self.args:
             self.usedVars += arg.usedVars 

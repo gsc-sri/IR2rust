@@ -10,15 +10,19 @@ from language import *
 from datatypes import *
 
 header = """
-#![allow(non_snake_case, dead_code, non_upper_case_globals, non_camel_case_types, unused_variables)]
+#![allow(non_snake_case, dead_code, non_upper_case_globals, non_camel_case_types, unused_variables, unused_parens)]
 
 use std::rc::Rc
-use std::clone::Clone;
+use std::clone::Clone;"""
+
+datatype_header = """use std::any::Any;
 
 fn Rc_unwrap_or_clone<T : Clone>(rc : Rc<T>) -> T{
     Rc::try_unwrap(rc).unwrap_or_else(|rc| (*rc).clone())
 }
 """
+
+isThereDatatype = False
 
 if __name__ == "__main__":
     fichier = open("IR.lisp", 'r')
@@ -31,6 +35,7 @@ if __name__ == "__main__":
         name, code = fn.split("@")
         print(name)
         if "DATATYPE " in name:
+            isThereDatatype = True
             th = name.split(" ")[3].strip(" \n")
             name = name.split(" ")[1]
             parsed = get_els_from_str(code)
@@ -41,8 +46,10 @@ if __name__ == "__main__":
             parsed = get_els_from_str(code)
             rust += get_expr(parsed[0], env(), name).toRust() + "\n\n"
 
-    rust = header + getTypeDecl() + "\n\n" + rust
-
+    if isThereDatatype:
+        rust = header + datatype_header + getTypeDecl() + "\n\n" + rust
+    else :
+        rust = header + getTypeDecl() + "\n\n" + rust
     fichier = open("out.rs", "w")
     fichier.write(rust)
     fichier.close()
