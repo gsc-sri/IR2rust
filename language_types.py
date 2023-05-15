@@ -93,7 +93,7 @@ def get_type(t : str | list) -> str:
         elif t[0].strip(" \n") == "->":
             argtype = get_type(t[1])
             outtype = get_type(t[2])
-            return "Box<dyn Fn(" + argtype + ") -> " + outtype + ">"
+            return "Rc<dyn Fn(" + argtype + ") -> " + outtype + ">"
         
         # --- ARRAYS ---
         elif t[0].strip(" \n") == "array":

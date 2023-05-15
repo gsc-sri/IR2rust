@@ -159,7 +159,7 @@ class Evariable(expr):
         self.used = self.fromEnv.used
 
         debug("Evariable : Fetched var " + self.name + " of type " +
-              self.type + " from env, used : " + str(self.used))
+              self.type + " from env, last : " + str(self.isLast))
 
     def isVariable(arr) -> bool:
         try:
@@ -171,7 +171,7 @@ class Evariable(expr):
 
     def toRust(self) -> str:
         output = self.name
-        if self.used and not self.isLast: 
+        if not self.isLast: 
             output += ".clone()"
         return output
 
@@ -518,27 +518,20 @@ class Eappication(expr):
 
     def toRust(self) -> str:
         if self.isDatatype:
-            output = self.args[0].toRust() + (".clone()" if not self.args[0].isLast else "") + "." + self.name + "("
+            output = self.args[0].toRust() + "." + self.name + "("
             for arg in self.args[1:]:
-                if arg.isLast:
-                    output += arg.toRust() + ','
-                else:
-                    output += arg.toRust() + '.clone() ,'
-            output = output.strip(',') + ")"
+                output += arg.toRust() + ','
         else:
             output = self.name + "("
             for arg in self.args:
-                if arg.isLast:
-                    output += arg.toRust() + ','
-                else:
-                    output += arg.toRust() + '.clone() ,'
-            output = output.strip(',') + ")"
+                output += arg.toRust() + ','
+        output = output.strip(',') + ")"
         return output
 
 
 class Efn(expr):
     # Representation of a function, it updates the env and returns a
-    # boxed (std::Box) closure, except on first level
+    # boxed (std::rc) closure, except on first level
     def __init__(self, code: str, env: env, name="") -> None:
         self.code = code
         self.name = name
@@ -594,7 +587,7 @@ class Efn(expr):
             output = output.strip(',') + ") -> " + self.outtype + '{'
             output += self.body.toRust() + '}'
         else:
-            output = "Box::new(move |"
+            output = "Rc::new(move |"
             for arg in self.args:
                 if self.env.get_var(arg[0]).mutable: output += "mut "
                 output += arg[3] + ": " + arg[1] + ","
