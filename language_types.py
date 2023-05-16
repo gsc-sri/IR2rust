@@ -7,7 +7,7 @@
 TYPE_DECLARATIONS = "" # will be modified by get_type to add type declaration
 # eg "type hello__bwaa_adt = i32;\n"
 CUSTOM_TYPES = [] # ["hello__pt", "hello__bwaa_adt"] 
-DATATYPES = []
+DATATYPES = ["ordstruct_adt__ordstruct_adt"]
 RECORDS = [] #list[record]
 
 def getTypeDecl():

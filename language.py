@@ -159,8 +159,6 @@ class Evariable(expr):
         self.type = self.fromEnv.type
         self.used = self.fromEnv.used
 
-        self.isLambda = "Rc<dyn Fn" in self.type
-
         debug("Evariable : Fetched var " + self.name + " of type " +
               self.type + " from env, last : " + str(self.isLast))
 
@@ -174,7 +172,7 @@ class Evariable(expr):
 
     def toRust(self) -> str:
         output = self.name
-        if not self.isLast and not self.isLambda: 
+        if not self.isLast: 
             output += ".clone()"
         return output
 
@@ -226,6 +224,7 @@ class Elambdacall(expr):
         debug("Elambdacall : calling lamda fn with arg: " + str(code[1]))
 
     def toRust(self) -> str:
+        self.fn.isLast = True # work-around
         return self.fn.toRust() + "(" + self.body.toRust()+")"
 
 

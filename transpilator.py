@@ -20,6 +20,10 @@ datatype_header = """use std::any::Any;
 fn Rc_unwrap_or_clone<T : Clone>(rc : Rc<T>) -> T{
     Rc::try_unwrap(rc).unwrap_or_else(|rc| (*rc).clone())
 }
+
+#[derive(Clone, Debug, PartialEq)]
+struct ordstruct_adt__ordstruct_adt {}
+
 """
 
 isThereDatatype = False
@@ -49,7 +53,7 @@ if __name__ == "__main__":
     if isThereDatatype:
         rust = header + datatype_header + getTypeDecl() + "\n\n" + rust
     else :
-        rust = header + getTypeDecl() + "\n\n" + rust
+        rust = header + "\n\n" + getTypeDecl() + "\n\n" + rust
     fichier = open("out.rs", "w")
     fichier.write(rust)
     fichier.close()
