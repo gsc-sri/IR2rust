@@ -8,7 +8,7 @@ TYPE_DECLARATIONS = "" # will be modified by get_type to add type declaration
 # eg "type hello__bwaa_adt = i32;\n"
 CUSTOM_TYPES = [] # ["hello__pt", "hello__bwaa_adt"] 
 DATATYPES = []
-RECORDS = []
+RECORDS = [] #list[record]
 
 def getTypeDecl():
     global TYPE_DECLARATIONS
@@ -40,6 +40,7 @@ class record:
             self.fields.append([ident, entryType])
 
         global RECORDS
+        print("RECORDS :", RECORDS,  code)
         # We need to have a name before returning
         if self.name == "":
             for rec in RECORDS:
@@ -54,14 +55,30 @@ class record:
             for field in self.fields:
                 out += field[0] + " : " + field[1] + ",\n"
             out += "}\n"
+            RECORDS.append(self)
             TYPE_DECLARATIONS += out
 
         # else no problem a name has been given
 
-    def __eq__(self, code : list): # TODO : improve with use of self.fields
-        a = "".join(self.code).replace(" \n", "")
-        b = "".join(code).replace(" \n", "")
-        return a == b
+    def __eq__(self, other): 
+        code = other.code
+        ret = (isinstance(self.code, list) and isinstance(code, list)
+                and self.code[0] == 'recordtype'
+                and code[0] == 'recordtype')
+        if not ret : return ret
+        ret &= len(code[1]) == len(self.code[1])
+        if not ret : return ret
+        for i in range(len(code[1])):
+            f1 = self.code[1][i]
+            f2 = code[1][i]
+            ret &= f1[0] == '=>'
+            if not ret : return ret
+            ret &= f2[0] == '=>'
+            if not ret : return ret
+            ret &= f1[1][0] == f2[1][0]
+            if not ret : return ret
+            ret &= f1[2] == f2[2] 
+        return ret
     
 
 def get_type(t : str | list) -> str:
@@ -121,8 +138,8 @@ def get_type(t : str | list) -> str:
                 for rec in RECORDS:
                     if name == rec.name:
                         return name
-                create_type(name, t[2])
-                return name
+                r = record(t[2])
+                return r.name
 
         # --- UKN ARRAY TYPE ---
         else:

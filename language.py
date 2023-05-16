@@ -50,7 +50,7 @@ CONSTS = ['true', 'false'] # we may add user-declared consts in Evalue
 class expr:
     # abstract class for expressions (= everything)
     # the init must parse
-    def __init__(self, code : str | list , env=[]) -> None:
+    def __init__(self, code : str | list , env) -> None:
         self.code: str = None
         self.env: list[var] = None
         self.usedVars: list[var] = None
@@ -121,6 +121,7 @@ def get_expr(tabl: list[list | str] | str, env: env, name = "") -> expr:
     elif key == "if": return Eif(tabl, env)
     elif key == "release": return Erelease(tabl, env)
     elif key == "lett": return Elett(tabl, env)
+    elif key == "record": return Erecord(tabl, env)
     elif key == "lookup": return Elookup(tabl, env)
     elif key == "get": return Eget(tabl, env)
     elif key == "update": return Eupdate(tabl, env)
@@ -158,6 +159,8 @@ class Evariable(expr):
         self.type = self.fromEnv.type
         self.used = self.fromEnv.used
 
+        self.isLambda = "Rc<dyn Fn" in self.type
+
         debug("Evariable : Fetched var " + self.name + " of type " +
               self.type + " from env, last : " + str(self.isLast))
 
@@ -171,7 +174,7 @@ class Evariable(expr):
 
     def toRust(self) -> str:
         output = self.name
-        if not self.isLast: 
+        if not self.isLast and not self.isLambda: 
             output += ".clone()"
         return output
 
@@ -208,10 +211,6 @@ class Evalue(expr):
 class Elambdacall(expr):
     # Representation of a lambda call: the first element is a var
     # containing a fn, the following are the arguments
-    # TODO :
-    #   Do some more checks
-    #   Handles > 1 args
-    #   Check that this fn does actually work
     def __init__(self, code: str, env: env) -> None:
 
         self.code = code
@@ -362,8 +361,34 @@ class Elookup(expr):
         else:
             raise Exception("E >> Left hand side array is neither lookup or variable")
 
+class Erecord(expr):
+    def __init__(self, code: str | list, env : env) -> None:
+        self.code = code
+        self.env = env
+
+        self.type : str = get_type(self.code[1])
+        self.fields : list[(str, expr)] = []
+        self.usedVars : list[var] = []
+
+        for field in self.code[2]:
+            assert field[0].strip(' \n') == "="
+            field_name : str = field[1].strip(' \n')
+            field_value : expr = get_expr(field[2], self.env)
+            self.env = field_value.env
+            self.usedVars += field_value.usedVars
+            self.fields.append((field_name, field_value))
+
+        debug("Erecord : " + self.type)
+
+    def toRust(self) -> str:
+        out = self.type + " {" 
+        for field in self.fields:
+            out += field[0] + " : " + field[1].toRust() + ", "
+        out += "}"
+        return out
+
 class Eget(expr):
-    def __init__(self, code: str | list, env=[]) -> None:
+    def __init__(self, code: str | list, env : env) -> None:
         self.code = code
         self.env = env
 
@@ -381,9 +406,9 @@ class Eget(expr):
         return self.recordtype.toRust() + "." + self.index
 
 class Eupdate(expr):
-    def __init__(self, code: str | list, env=[]) -> None:
+    def __init__(self, code: str | list, env : env) -> None:
         self.code : str = code
-        self.env : str | list = env
+        self.env= env
 
         self.lhs : expr = get_expr(self.code[1], self.env)
         self.env = self.lhs.env
