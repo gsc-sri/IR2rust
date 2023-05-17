@@ -16,18 +16,19 @@ Supports:
  - Lambda functions : `lambda`
  - Enums
  - Recordtypes
- - Datatypes (no reduce function)
+ - Datatypes
  - Primitives : 
  ```PVS
    = /= TRUE FALSE IMPLIES => ⇒ <=> ⇔ AND & ∧ OR ∨ NOT ¬ WHEN IFF + - * /
-   < <= > >= floor ceiling nrem ndiv even? odd? ```
+   < <= > >= floor ceiling nrem ndiv even? odd? 
+ ```
 
  To be implemented:
  - Uninterpreted types (going with generic types)
 
 ## TODO
 Implement uninterpreted types
-Handle reduce functions of datatypes : rework lambda first WIP
-Handle variable declaration in theory
+Handle variable declaration in theory WIP
 Handle forall & exists
 Handle prelude lists & more primitives
+Handle dependant types

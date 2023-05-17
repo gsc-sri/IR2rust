@@ -34,6 +34,7 @@ if __name__ == "__main__":
     fichier.close()
 
     rust = ""
+    executed_rust = "fn main() {\n"
     functions = src.split("$")
     for fn in functions:
         name, code = fn.split("@")
@@ -44,16 +45,20 @@ if __name__ == "__main__":
             name = name.split(" ")[1]
             parsed = get_els_from_str(code)
             rust += datatype(parsed, name, th).toRust()
-            isDatatype = True
         else:
-            isDatatype = False
             parsed = get_els_from_str(code)
-            rust += get_expr(parsed[0], env(), name).toRust() + "\n\n"
+            e = get_expr(parsed[0], env(), name)
+            if isinstance(e, Efn) or isinstance(e, Evalue):
+                rust += e.toRust() + "\n\n"
+            else:
+                executed_rust += "let " + name + " = {" + e.toRust() + "}\n\n"
+    executed_rust += "}"
 
     if isThereDatatype:
         rust = header + datatype_header + getTypeDecl() + "\n\n" + rust
     else :
         rust = header + "\n\n" + getTypeDecl() + "\n\n" + rust
+    rust += executed_rust
     fichier = open("out.rs", "w")
     fichier.write(rust)
     fichier.close()

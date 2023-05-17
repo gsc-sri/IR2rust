@@ -29,19 +29,19 @@ class datatype:
 
             # accessor functions
             for accessor in constructor[2:]:
-                self.out += "fn " + self.name + "__" + accessor[1] + "(self : Self) -> " + get_type(accessor[2]) + ";\n"
+                self.out += "fn " + self.name + "__" + accessor[1] + "(self : Self) -> " + get_type(accessor[2]).toRust() + ";\n"
                 DATATYPE_FUNCTIONS.append(self.name + "__" + accessor[1])
             
             # update functions
             for accessor in constructor[2:]:
                 self.out += "fn " + self.name + "__" + accessor[1] + "__update" 
-                self.out += "(self : Self, "+ accessor[1] + " : " + get_type(accessor[2]) +") -> "+ self.name +" ;\n"
+                self.out += "(self : Self, "+ accessor[1] + " : " + get_type(accessor[2]).toRust() +") -> "+ self.name +" ;\n"
                 DATATYPE_FUNCTIONS.append(self.name + "__" + accessor[1] + "__update" )
 
             # constructors
             self.out += "fn " + self.name + "__" + cname + "("
             for accessor in constructor[2:]:
-                self.out += accessor[1] + " : " + get_type(accessor[2]) + ","
+                self.out += accessor[1] + " : " + get_type(accessor[2]).toRust() + ","
             self.out += ") -> " + self.name + " {\n"
             self.out += self.name + " {\n"
             self.out += "ord : " + str(i) + ",\n"
@@ -64,7 +64,7 @@ class datatype:
             self.out += "#[derive(Clone, PartialEq, Debug)]\n"
             self.out += "struct " + constructor[1] + " {\n"
             for accessor in constructor[2:]:
-                self.out += accessor[1] + " : " + get_type(accessor[2]) + ",\n"
+                self.out += accessor[1] + " : " + get_type(accessor[2]).toRust() + ",\n"
             self.out += "}\n\n"
         
 
@@ -94,13 +94,13 @@ class datatype:
 
             # accessor functions
             for accessor in constructor[2:]:
-                self.out += "fn " + self.name + "__" + accessor[1] + "(self : Self) -> " + get_type(accessor[2]) + "{\n"
+                self.out += "fn " + self.name + "__" + accessor[1] + "(self : Self) -> " + get_type(accessor[2]).toRust() + "{\n"
                 self.out += "Rc_unwrap_or_clone(Rc::downcast::<"+ constructor[1] +">(self.data).unwrap())." + accessor[1] + "}\n"
             
             # update functions
             for accessor in constructor[2:]:
                 self.out += "fn " + self.name + "__" + accessor[1] + "__update" 
-                self.out += "(self : Self, "+ accessor[1] + " : " + get_type(accessor[2]) +") -> "+ self.name +" {\n"
+                self.out += "(self : Self, "+ accessor[1] + " : " + get_type(accessor[2]).toRust() +") -> "+ self.name +" {\n"
                 self.out += "let mut updated = Rc::downcast::<"+ constructor[1] +">(self.data).unwrap();\n"
                 self.out += "Rc::make_mut(&mut updated)." + accessor[1] + " = " + accessor[1] + ";\n"
                 self.out += self.name + " { ord: " + str(i) + ", data : updated}\n}\n "

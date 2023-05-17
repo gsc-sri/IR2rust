@@ -62,15 +62,14 @@ class expr:
 
 class var:
     # Represents a variable of the env
-    def __init__(self, name: str, type: str, scope: expr, rawType : str | list, isArg = False) -> None:
+    def __init__(self, name: str, type: typ, scope: expr, isArg = False) -> None:
         self.name: str = name
         self.names: list[str] = [name]
-        self.type: str = type
+        self.type: typ = type
         self.used: bool = False
         self.scope: expr = scope # Not used rn but may be for better memory management
         self.mutable: bool = False
         self.isArg: bool = isArg
-        self.rawType : str | list = rawType # used sometimes
 
     def __str__(self) -> str:
         return "VAR " + self.name + " arg " + str(self.isArg) + " mut " + str(self.mutable)
@@ -81,16 +80,13 @@ class env:
     def __init__(self, from_env=None):
         self.variables: list[var] = [] if from_env == None else from_env.variables
 
-    def get_var(self, s: str):
+    def get_var(self, s: str) -> var:
         s = s.strip(' \n')
         for var in self.variables:
             if s in var.names:
                 return var
         debug("WARN : var " + s + " not found in env " + str(self))
         return None
-
-    def set_used(self, s: str):
-        self.get_var(s).used = True
 
     def __str__(self) -> str:
         output = ""
@@ -155,12 +151,12 @@ class Evariable(expr):
         
         self.usedVars: list[var] = [self.fromEnv]
 
-        self.name = self.fromEnv.name
-        self.type = self.fromEnv.type
-        self.used = self.fromEnv.used
+        self.name : str = self.fromEnv.name
+        self.type : typ = self.fromEnv.type
+        self.used : bool = self.fromEnv.used
 
         debug("Evariable : Fetched var " + self.name + " of type " +
-              self.type + " from env, last : " + str(self.isLast))
+              self.type.toRust() + " from env, last : " + str(self.isLast))
 
     def isVariable(arr) -> bool:
         try:
@@ -237,7 +233,7 @@ class Elet(expr):
         self.env: env = env
 
         self.varName: str = self.code[1].strip(' \n')
-        self.varType: str = get_type(self.code[2])
+        self.varType: typ = get_type(self.code[2])
 
         if isinstance(code[3], str) and code[3].strip(' \n') == 'nil':
             raise Exception("E >> trying to assign null value")
@@ -245,7 +241,7 @@ class Elet(expr):
 
         self.middle = get_expr(self.code[3], self.env)
         self.env = self.middle.env
-        self.env.variables.append(var(self.varName, self.varType, self, self.code[2]))
+        self.env.variables.append(var(self.varName, self.varType, self))
         self.right = get_expr(self.code[4], self.env)
 
         self.usedVars: list[var] = self.right.usedVars
@@ -259,7 +255,7 @@ class Elet(expr):
             output = "let mut "
         else:
             output = "let "
-        output += v.name + " : " + v.type
+        output += v.name + " : " + v.type.toRust()
         output += " = {" + self.middle.toRust()
         output += '};\n'
         output += self.right.toRust()
@@ -267,31 +263,50 @@ class Elet(expr):
 
 
 class Elett(expr):
+    #TODO
     # Representation of a lett. It adds a new name for the variable in the env
-    def __init__(self, code: str, env: env) -> None:
+    # and does the conversion if the types are different
+    def __init__(self, code: str | list, env: env) -> None:
         self.code = code
         self.env = env
 
-        self.varName = self.code[1].strip(' \n')
-        self.varType = get_type(self.code[2])
+        self.varName : str = self.code[1].strip(' \n')
+        self.varType : typ = get_type(self.code[2])
+        self.fromType : typ = get_type(self.code[3])
+        self.expr : expr = get_expr(self.code[4], self.env)
+        self.env = self.expr.env 
 
-        self.targetVar = get_expr(self.code[4], self.env)
-        self.env = self.targetVar.env
-
-
-        for var in self.env.variables:
-            if self.targetVar.name in var.names:
-                var.names.append(self.varName)
-                break
+        self.env.variables.append(var(self.varName, self.varType, self))
 
         self.body: expr = get_expr(self.code[5], self.env)
         self.env = self.body.env
-        self.usedVars: list[var] = self.body.usedVars
 
-        debug("Elett : added name " + self.varName + " to var " + self.targetVar)
+        self.usedVars: list[var] = self.body.usedVars + self.expr.usedVars
+
+        debug("Elett : " + self.varName + " = " + self.expr.toRust())
+
+    def copy_function_to_array(funtype : expr):
+        # Takes an expression which type is funtype and output the code that gives an arraytype
+        pass
 
     def toRust(self) -> str:
-        return self.body.toRust()
+        v : var = self.env.get_var(self.varName)
+        if v.mutable:
+            output = "let mut "
+        else:
+            output = "let "
+        output += v.name + " : " + v.type.toRust() + " = "
+        vt = self.varType if not isinstance(self.varType, Tcustom) else self.varType.type
+
+        # --- Same type ---
+        if type(vt) == type(self.fromType):
+            output += "{" + self.expr.toRust() + "};\n"
+        # ---
+        else :
+            raise Exception(str(type(vt)) + "   " + str(type(self.fromType)))
+            #raise Exception("E >> cannot convert from " + self.fromType.toRust() + " to " + self.varType.toRust())
+        output += self.body.toRust()
+        return output
 
 
 class Eif(expr):
@@ -365,7 +380,7 @@ class Erecord(expr):
         self.code = code
         self.env = env
 
-        self.type : str = get_type(self.code[1])
+        self.type : typ = get_type(self.code[1])
         self.fields : list[(str, expr)] = []
         self.usedVars : list[var] = []
 
@@ -380,7 +395,7 @@ class Erecord(expr):
         debug("Erecord : " + self.type)
 
     def toRust(self) -> str:
-        out = self.type + " {" 
+        out = self.type.toRust() + " {" 
         for field in self.fields:
             out += field[0] + " : " + field[1].toRust() + ", "
         out += "}"
@@ -455,10 +470,12 @@ class Eupdate(expr):
 
     def arrayOrRecord(code: expr) -> str:
         if isinstance(code, Evariable):
-            rawType = code.fromEnv.rawType
-            if isArray(rawType) : return "array"
-            elif isRecordtype(rawType) : return "recordtype"
-            else : raise Exception("E >> lhs of update is neither array or record, but " + str(rawType))
+            t : typ = code.fromEnv.type
+            while True:
+                if isinstance(t, Tarray) : return "array"
+                elif isinstance(t, Trecord) : return "recordtype"
+                elif isinstance(t, Tcustom) : t = t.type
+                else : raise Exception("E >> lhs of update is neither array or record, but " + str(t))
         elif isinstance(code, Eget):
             return Eupdate.arrayOrRecord(code.recordtype)
         elif isinstance(code, Elookup):
@@ -531,6 +548,7 @@ class Eappication(expr):
         self.isDatatype = self.name in DATATYPE_FUNCTIONS
 
         self.args: list[Evariable] = []
+        debug("Eapplication code >> " + str(code))
         for argCode in self.code[1:]:
             if not isinstance(argCode, str) or argCode.strip(' \n') != 'nil':
                 self.args.append(get_expr(argCode, self.env))
@@ -559,11 +577,11 @@ class Efn(expr):
     def __init__(self, code: str, env: env, name="") -> None:
         self.code = code
         self.name = name
-        self.firstLevel = name != ""
+        self.firstLevel : bool = name != ""
 
-        self.args = []  # [[name, type, rawType]]
-        self.outtype = ""
-        self.body = None
+        self.args : list = []  # [[name, type, realName]]
+        self.outtype : typ = None
+        self.body : expr = None
         self.env = env
 
         self.parse()
@@ -572,9 +590,9 @@ class Efn(expr):
             vari.used = True
 
         for arg in self.args:
-            self.env.variables.append(var(arg[0], arg[1], self, arg[2], True))
-            self.env.get_var(arg[0]).names.append(arg[3])
-            self.env.get_var(arg[0]).name = arg[3]
+            self.env.variables.append(var(arg[0], arg[1], self, True))
+            self.env.get_var(arg[0]).names.append(arg[2])
+            self.env.get_var(arg[0]).name = arg[2]
 
         self.body: expr = get_expr(self.body, self.env)
         self.env = self.body.env
@@ -582,7 +600,6 @@ class Efn(expr):
         self.usedVars: list[var] = self.body.usedVars
 
         debug("Efn : function " + str(self.args) + " -> " + str(self.outtype))
-        debug(str(self.env))
 
     def isFn(arr) -> bool:
         try:
@@ -598,7 +615,7 @@ class Efn(expr):
         for var in self.code[1]:
             v = var[0]
             t = get_type(var[1])
-            self.args.append([v.strip(' \n'), t.strip(' \n'), var[1], var[2].strip(' \n')])
+            self.args.append([v.strip(' \n'), t, var[2].strip(' \n')])
         self.outtype = get_type(self.code[3])
         self.body = self.code[4]
 
@@ -607,14 +624,14 @@ class Efn(expr):
             output = "fn " + self.name + "("
             for arg in self.args:
                 if self.env.get_var(arg[0]).mutable: output += "mut "
-                output += arg[3] + ": " + arg[1] + ","
-            output = output.strip(',') + ") -> " + self.outtype + '{'
+                output += arg[2] + ": " + arg[1].toRust() + ","
+            output = output.strip(',') + ") -> " + self.outtype.toRust() + '{'
             output += self.body.toRust() + '}'
         else:
             output = "Rc::new(move |"
             for arg in self.args:
                 if self.env.get_var(arg[0]).mutable: output += "mut "
-                output += arg[3] + ": " + arg[1] + ","
-            output = output.strip(',') + "| -> " + self.outtype + '{'
+                output += arg[2] + ": " + arg[1].toRust() + ","
+            output = output.strip(',') + "| -> " + self.outtype.toRust() + '{'
             output += self.body.toRust() + '})'
         return output

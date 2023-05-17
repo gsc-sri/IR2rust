@@ -6,41 +6,73 @@
 
 TYPE_DECLARATIONS = "" # will be modified by get_type to add type declaration
 # eg "type hello__bwaa_adt = i32;\n"
-CUSTOM_TYPES = [] # ["hello__pt", "hello__bwaa_adt"] 
+CUSTOM_TYPES : list = [] # ["hello__pt", "hello__bwaa_adt"] list[typ]
 DATATYPES = ["ordstruct_adt__ordstruct_adt"]
-RECORDS = [] #list[record]
+RECORDS : list = [] #list[record]
 
 def getTypeDecl():
     global TYPE_DECLARATIONS
     return TYPE_DECLARATIONS
 
-def create_type(name : str, code : str | list) -> None:
-    #On first time reading a typename, we add it to our list
-    #and create corresponding Rust type
-    global TYPE_DECLARATIONS
-    global CUSTOM_TYPES
+class typ:
+    def __init__(self, code : list) -> None:
+        pass
 
-    rhs = get_type(code)
-    out = "type " + name + " = " + rhs + ";\n"
-    CUSTOM_TYPES.append(name)
+    def toRust(self) -> str:
+        pass
 
-    TYPE_DECLARATIONS += out + "\n"
+class Tint(typ):
+    def __init__(self, code : list) -> None:
+        self.code = code
 
+    def toRust(self) -> str:
+        return "i32"
 
-class record:
+class Treal(typ):
+    def __init__(self, code : list) -> None:
+        self.code = code
+
+    def toRust(self) -> str:
+        return "f32"
+
+class Tbool(typ):
+    def __init__(self, code : list) -> None:
+        self.code = code
+
+    def toRust(self) -> str:
+        return "bool"
+
+class Tfunction(typ):
+    def __init__(self, code : list) -> None:
+        self.code = code
+        self.argtype = get_type(code[1])
+        self.outtype = get_type(code[2])
+
+    def toRust(self) -> str:
+        return "Rc<dyn Fn(" + self.argtype + ") -> " + self.outtype + ">"
+
+class Tarray(typ):
+    def __init__(self, code : list) -> None:
+        self.code = code
+        self.arrayType : typ = get_type(code[1])
+        self.size, self.high = code[2].strip(' \n[]').split("/")
+
+    def toRust(self) -> str:
+        return "Rc<[" + self.arrayType.toRust() + "; " + self.size + "]>"
+
+class Trecord(typ):
     def __init__(self, code : list, name = "") -> None:
         self.name : str = name
         self.code : list = code
-        assert(code[0].strip(" \n") == "recordtype")
+
         self.fields : list = []
         for entry in code[1]:
             assert(entry[0].strip(" \n") == "=>")
             ident, uniqueIdent = entry[1]
-            entryType = get_type(entry[2])
+            entryType : typ = get_type(entry[2])
             self.fields.append([ident, entryType])
 
         global RECORDS
-        print("RECORDS :", RECORDS,  code)
         # We need to have a name before returning
         if self.name == "":
             for rec in RECORDS:
@@ -57,8 +89,6 @@ class record:
             out += "}\n"
             RECORDS.append(self)
             TYPE_DECLARATIONS += out
-
-        # else no problem a name has been given
 
     def __eq__(self, other): 
         code = other.code
@@ -78,96 +108,66 @@ class record:
             ret &= f1[1][0] == f2[1][0]
             if not ret : return ret
             ret &= f1[2] == f2[2] 
+            if not ret : return ret
         return ret
-    
+
+    def toRust(self) -> str:
+        return self.name
+
+class Tcustom(typ):
+    def __init__(self, code : list) -> None:
+        self.code = code
+        self.name = code[0].strip("\n")
+        global CUSTOM_TYPES
+        global DATATYPES
+        global RECORDS
+        global TYPE_DECLARATIONS
+        if self.name in [i.name for i in CUSTOM_TYPES]:
+            j = [i.name for i in CUSTOM_TYPES].index(self.name)
+            self.type = CUSTOM_TYPES[j].type
+        elif not self.name in DATATYPES:
+            if isinstance(self.code[2], list) and self.code[2][0] == "recordtype":
+                for rec in RECORDS:
+                    if self.name == rec.name:
+                        return
+                self.type = Trecord(self.code[2], self.name)
+            else:
+                self.type = get_type(self.code[2])
+                out = "type " + self.name + " = " + self.type.toRust() + ";\n"
+                CUSTOM_TYPES.append(self)
+                TYPE_DECLARATIONS += out + "\n"
+        else:
+            self.type = None
+
+    def toRust(self) -> str:
+        return self.name
+
+
+
 
 def get_type(t : str | list) -> str:
     # Get rust type from IR type string or array
 
     if isinstance(t, str):
         t = t.strip(" \n")
-
-        # --- REALS ---
         if t == "mpq":
-            print("W >> float found, trying integer")
-            return "i32"
-        
-        # --- BOOLS ---
+            #return Treal(t)
+            return Tint(t)
         elif t == "bool" or t == "boolean":
-            return "bool"
-        
-        # --- UKN STR TYPE ---
+            return Tbool(t)
         else:
             raise Exception("E >> unknown type :", t, ", trying i32\n")
         
     else:
-
-        # --- INTEGERS ---
         if t[0].strip(" \n") == "subrange":
-            return 'i32'
-        
-        # --- FUNTYPES ---
+            return Tint(t)
         elif t[0].strip(" \n") == "->":
-            argtype = get_type(t[1])
-            outtype = get_type(t[2])
-            return "Rc<dyn Fn(" + argtype + ") -> " + outtype + ">"
-        
-        # --- ARRAYS ---
+            return Tfunction(t)
         elif t[0].strip(" \n") == "array":
-            arrayType = get_type(t[1])
-            size, high = t[2].strip(' \n[]').split("/")
-            return "Rc<[" + arrayType + "; " + size + "]>"
-        
-        # --- RECORD ---    
+            return Tarray(t)
         elif t[0].strip(" \n") == "recordtype":
-            rec = record(t)
-            return rec.name
-        
-        # --- TYPENAMES ---
+            return Trecord(t)
         elif isinstance(t[1], str) and t[1].strip(' \n') == ":":
-            # custom type
-            name = t[0].strip("\n")
-            global CUSTOM_TYPES
-            global DATATYPES
-            global RECORDS
-            if name in CUSTOM_TYPES:
-                return name
-            elif name in DATATYPES:
-                return name
-            else:
-                for rec in RECORDS:
-                    if name == rec.name:
-                        return name
-                r = record(t[2])
-                return r.name
-
-        # --- UKN ARRAY TYPE ---
+            return Tcustom(t)
         else:
             raise Exception("E >> UKWN TYPE : ", t)
-
-
-def isArray(code):
-    if not isinstance(code, list):
-        return False
-    key = code[0].strip(' \n')
-    if key == "last" or key[:4] == "ivar":
-        return isArray(code[1])
-    elif key == "array":
-        return True
-    elif key in CUSTOM_TYPES:
-        return isArray(code[2])
-    else:
-        return False
-    
-def isRecordtype(code):
-    if not isinstance(code, list):
-        return False
-    key = code[0].strip(' \n')
-    if key == "last" or key[:4] == "ivar":
-        return isRecordtype(code[1])
-    elif key == "recordtype":
-        return True
-    elif key in CUSTOM_TYPES:
-        return isRecordtype(code[2])
-    else:
-        return False
