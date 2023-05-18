@@ -1,14 +1,10 @@
 
-#(hello__pt : (recordtype
-#              ((=> (x x131) (subrange 0 * nil nil))
-#               (=> (y y132) (subrange 0 * nil nil)))))
-#hello__bwaa_adt : (subrange 0 2 nil nil)
-
-TYPE_DECLARATIONS = "" # will be modified by get_type to add type declaration
+TYPE_DECLARATIONS = "" # will be modified by Tcustom & Trecord to add type declaration
 # eg "type hello__bwaa_adt = i32;\n"
-CUSTOM_TYPES : list = [] # ["hello__pt", "hello__bwaa_adt"] list[typ]
-DATATYPES = ["ordstruct_adt__ordstruct_adt"]
-RECORDS : list = [] #list[record]
+
+CUSTOM_TYPES : list = [] # list[typ]
+DATATYPES = ["ordstruct_adt__ordstruct_adt"] # ordstruct is a structure used in every datatype declaration
+RECORDS : list = [] # list[record]
 
 def getTypeDecl():
     global TYPE_DECLARATIONS
@@ -42,23 +38,70 @@ class Tbool(typ):
     def toRust(self) -> str:
         return "bool"
 
-class Tfunction(typ):
+class Tcustom(typ):
     def __init__(self, code : list) -> None:
         self.code = code
-        self.argtype = get_type(code[1])
-        self.outtype = get_type(code[2])
+        self.name = code[0].strip("\n")
+        global CUSTOM_TYPES
+        global DATATYPES
+        global RECORDS
+        global TYPE_DECLARATIONS
+        if self.name in [i.name for i in CUSTOM_TYPES]:
+            j = [i.name for i in CUSTOM_TYPES].index(self.name)
+            self.type = CUSTOM_TYPES[j].type
+        elif not self.name in DATATYPES:
+            if isinstance(self.code[2], list) and self.code[2][0] == "recordtype":
+                for rec in RECORDS:
+                    if self.name == rec.name:
+                        return
+                self.type = Trecord(self.code[2], self.name)
+            else:
+                self.type = get_type(self.code[2])
+                out = "type " + self.name + " = " + self.type.toRust() + ";\n"
+                CUSTOM_TYPES.append(self)
+                TYPE_DECLARATIONS += out + "\n"
+        else:
+            self.type = None
 
     def toRust(self) -> str:
-        return "Rc<dyn Fn(" + self.argtype + ") -> " + self.outtype + ">"
+        return self.name
 
 class Tarray(typ):
     def __init__(self, code : list) -> None:
         self.code = code
         self.arrayType : typ = get_type(code[1])
-        self.size, self.high = code[2].strip(' \n[]').split("/")
+        self.size, self.high = code[2].strip(' \n[]').split("/") # self.high not used
+        self.size = str(int(self.size) + 1)
 
     def toRust(self) -> str:
         return "Rc<[" + self.arrayType.toRust() + "; " + self.size + "]>"
+
+class Tfunction(typ):
+    def __init__(self, code : list) -> None:
+        self.code = code
+        self.argtype: typ = get_type(code[1])
+        self.outtype: typ = get_type(code[2])
+
+    def toRustArray(self, arrayType : Tarray | Tcustom, fnName : str, depth = 1) -> str:
+        # arraType is the target type, from type is self, we do some checks and then the conversion
+        if isinstance(arrayType.arrayType, Tarray):
+            t : Tarray = arrayType.arrayType
+        elif isinstance(arrayType.arrayType, Tcustom):
+            if not isinstance(arrayType.arrayType.type, Tarray):
+                Exception("E >> Illegal conversion from " + str(type(self.outtype)) + " to " + str(type(arrayType.arrayType.type)))
+            t : Tarray = arrayType.arrayType.type
+        else : 
+            Exception("E >> Illegal conversion from " + str(type(self.outtype)) + " to " + str(type(arrayType.arrayType)))
+
+        if isinstance(self.outtype, Tfunction):
+            out = "Rc::new(core::array::from_fn::<"+ arrayType.arrayType.toRust() +", "+ arrayType.size +", _>(|j"+ str(depth) +" : usize| "+ self.outtype.toRustArray(t, fnName +"(j"+ str(depth) +" as i32)", depth + 1) +"))\n;"
+        else:
+            assert(isinstance(self.argtype, Tint)) 
+            out = "Rc::new(core::array::from_fn::<"+ arrayType.arrayType.toRust() +", "+ arrayType.size +", _>(|j"+ str(depth) +" : usize|  "+ fnName +"(j"+ str(depth) +" as i32)))"
+        return out
+
+    def toRust(self) -> str:
+        return "Rc<dyn Fn(" + self.argtype.toRust() + ") -> " + self.outtype.toRust() + ">"
 
 class Trecord(typ):
     def __init__(self, code : list, name = "") -> None:
@@ -113,36 +156,6 @@ class Trecord(typ):
 
     def toRust(self) -> str:
         return self.name
-
-class Tcustom(typ):
-    def __init__(self, code : list) -> None:
-        self.code = code
-        self.name = code[0].strip("\n")
-        global CUSTOM_TYPES
-        global DATATYPES
-        global RECORDS
-        global TYPE_DECLARATIONS
-        if self.name in [i.name for i in CUSTOM_TYPES]:
-            j = [i.name for i in CUSTOM_TYPES].index(self.name)
-            self.type = CUSTOM_TYPES[j].type
-        elif not self.name in DATATYPES:
-            if isinstance(self.code[2], list) and self.code[2][0] == "recordtype":
-                for rec in RECORDS:
-                    if self.name == rec.name:
-                        return
-                self.type = Trecord(self.code[2], self.name)
-            else:
-                self.type = get_type(self.code[2])
-                out = "type " + self.name + " = " + self.type.toRust() + ";\n"
-                CUSTOM_TYPES.append(self)
-                TYPE_DECLARATIONS += out + "\n"
-        else:
-            self.type = None
-
-    def toRust(self) -> str:
-        return self.name
-
-
 
 
 def get_type(t : str | list) -> str:

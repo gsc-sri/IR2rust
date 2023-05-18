@@ -12,7 +12,7 @@ can be found here : https://github.com/gsc-sri/PVS , the pvs2rust.lisp file shou
 Supports:
  - `let`, `lett`, `if`, `release`
  - Integers
- - Arrays : `lookup` & `update` in an optimized way
+ - Arrays : `lookup` & `update` in an optimized way + creation from function (`lett`)
  - Lambda functions : `lambda`
  - Enums
  - Recordtypes
@@ -28,7 +28,6 @@ Supports:
 
 ## TODO
 Implement uninterpreted types
-Handle variable declaration in theory WIP
 Handle forall & exists
 Handle prelude lists & more primitives
-Handle dependant types
+Handle dependant types WIP

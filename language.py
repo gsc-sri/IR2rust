@@ -263,7 +263,6 @@ class Elet(expr):
 
 
 class Elett(expr):
-    #TODO
     # Representation of a lett. It adds a new name for the variable in the env
     # and does the conversion if the types are different
     def __init__(self, code: str | list, env: env) -> None:
@@ -285,10 +284,6 @@ class Elett(expr):
 
         debug("Elett : " + self.varName + " = " + self.expr.toRust())
 
-    def copy_function_to_array(funtype : expr):
-        # Takes an expression which type is funtype and output the code that gives an arraytype
-        pass
-
     def toRust(self) -> str:
         v : var = self.env.get_var(self.varName)
         if v.mutable:
@@ -301,10 +296,11 @@ class Elett(expr):
         # --- Same type ---
         if type(vt) == type(self.fromType):
             output += "{" + self.expr.toRust() + "};\n"
-        # ---
+        # --- From function to array
+        elif type(self.fromType) == Tfunction and type(vt) == Tarray:
+            output += self.fromType.toRustArray(vt, self.expr.toRust(), 1)
         else :
-            raise Exception(str(type(vt)) + "   " + str(type(self.fromType)))
-            #raise Exception("E >> cannot convert from " + self.fromType.toRust() + " to " + self.varType.toRust())
+            raise Exception("E >> cannot convert from " + str(type(vt)) + " to " + str(type(self.fromType)))
         output += self.body.toRust()
         return output
 
@@ -591,8 +587,9 @@ class Efn(expr):
 
         for arg in self.args:
             self.env.variables.append(var(arg[0], arg[1], self, True))
-            self.env.get_var(arg[0]).names.append(arg[2])
-            self.env.get_var(arg[0]).name = arg[2]
+            if arg[2].strip(" ") != 'nil':
+                self.env.get_var(arg[0]).names.append(arg[2])
+                self.env.get_var(arg[0]).name = arg[2]
 
         self.body: expr = get_expr(self.body, self.env)
         self.env = self.body.env
@@ -624,14 +621,14 @@ class Efn(expr):
             output = "fn " + self.name + "("
             for arg in self.args:
                 if self.env.get_var(arg[0]).mutable: output += "mut "
-                output += arg[2] + ": " + arg[1].toRust() + ","
+                output += self.env.get_var(arg[0]).name + ": " + arg[1].toRust() + ","
             output = output.strip(',') + ") -> " + self.outtype.toRust() + '{'
             output += self.body.toRust() + '}'
         else:
             output = "Rc::new(move |"
             for arg in self.args:
                 if self.env.get_var(arg[0]).mutable: output += "mut "
-                output += arg[2] + ": " + arg[1].toRust() + ","
+                output += self.env.get_var(arg[0]).name + ": " + arg[1].toRust() + ","
             output = output.strip(',') + "| -> " + self.outtype.toRust() + '{'
             output += self.body.toRust() + '})'
         return output
