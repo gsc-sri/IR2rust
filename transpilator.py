@@ -34,7 +34,7 @@ struct funtype<A: Eq + Hash, V : Clone> {
     hashtable: HashMap<A, V>,
 }
 
-impl<A : Eq + Hash, V : Clone> funtype<A, V> {
+impl<A: Eq + Hash, V: Clone> funtype<A, V> {
     fn new(explicit: Rc<dyn Fn(A) -> V>) -> funtype<A, V> {
         funtype {
             explicit,
@@ -47,8 +47,9 @@ impl<A : Eq + Hash, V : Clone> funtype<A, V> {
             None => (self.explicit)(a),
         }
     }
-    fn update(&mut self, a: A, v: V) {
+    fn update(mut self, a: A, v: V) -> Self{
         self.hashtable.insert(a, v);
+        self
     }
 }"""
 

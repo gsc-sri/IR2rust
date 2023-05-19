@@ -168,7 +168,7 @@ class Evariable(expr):
 
     def toRust(self) -> str:
         output = self.name
-        if not self.isLast: 
+        if not self.isLast and not isinstance(self.type, Tint): 
             output += ".clone()"
         return output
 
@@ -424,7 +424,7 @@ class Eupdate(expr):
         self.env = self.lhs.env
 
         # self.lhs peut etre get lookup var (array ou record type)
-        self.lhsType : str = Eupdate.arrayOrRecord(self.lhs) # "recordtype" ou "array" ou "function"
+        self.lhsType : str = Eupdate.type(self.lhs) # "recordtype" ou "array" ou "function"
 
         if self.lhsType == "array":
             # 
@@ -506,7 +506,7 @@ class Eupdate(expr):
                 output = self.lhs.toRust() + "." + self.index + " = " + self.value.toRust() 
             output += "; " + Eupdate.get_recordtype_name(self.lhs)
         elif self.lhsType == "function":
-            output = self.lhs.toRust() + ".update(" + self.index + ", " + self.value.toRust() + ");\n" 
+            output = self.lhs.toRust() + ".update(" + self.arg.toRust() + ", " + self.value.toRust() + ");\n" 
         return output
 
 
