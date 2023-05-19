@@ -13,7 +13,8 @@ header = """
 #![allow(non_snake_case, dead_code, non_upper_case_globals, non_camel_case_types, unused_variables, unused_parens)]
 
 use std::rc::Rc
-use std::clone::Clone;"""
+use std::clone::Clone;
+use std::hash::Hash;"""
 
 datatype_header = """use std::any::Any;
 
@@ -23,8 +24,34 @@ fn Rc_unwrap_or_clone<T : Clone>(rc : Rc<T>) -> T{
 
 #[derive(Clone, Debug, PartialEq)]
 struct ordstruct_adt__ordstruct_adt {}
-
 """
+
+function_header = """
+use std::collections::HashMap;
+
+struct funtype<A: Eq + Hash, V : Clone> {
+    explicit: Rc<dyn Fn(A) -> V>,
+    hashtable: HashMap<A, V>,
+}
+
+impl<A : Eq + Hash, V : Clone> funtype<A, V> {
+    fn new(explicit: Rc<dyn Fn(A) -> V>) -> funtype<A, V> {
+        funtype {
+            explicit,
+            hashtable: HashMap::new(),
+        }
+    }
+    fn lookup(&self, a: A) -> V {
+        match self.hashtable.get(&a) {
+            Some(v) => v.clone(),
+            None => (self.explicit)(a),
+        }
+    }
+    fn update(&mut self, a: A, v: V) {
+        self.hashtable.insert(a, v);
+    }
+}"""
+
 
 isThereDatatype = False
 
@@ -54,13 +81,18 @@ if __name__ == "__main__":
                 executed_rust += "let " + name + " = {" + e.toRust() + "}\n\n"
     executed_rust += "}"
 
+    out = header
     if isThereDatatype:
-        rust = header + datatype_header + getTypeDecl() + "\n\n" + rust
-    else :
-        rust = header + "\n\n" + getTypeDecl() + "\n\n" + rust
-    rust += executed_rust
+        out += datatype_header
+    if len(FUNCTIONS) > 0:
+        out += function_header
+    out += "\n\n"
+    out += getTypeDecl()
+    out += rust
+    out += executed_rust
+    
     fichier = open("out.rs", "w")
-    fichier.write(rust)
+    fichier.write(out)
     fichier.close()
 
     os.system("prettier --write out.rs") # requires prettier

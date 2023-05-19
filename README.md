@@ -17,6 +17,7 @@ Supports:
  - Enums
  - Recordtypes
  - Datatypes
+ - Funtypes
  - Primitives : 
  ```PVS
    = /= TRUE FALSE IMPLIES => ⇒ <=> ⇔ AND & ∧ OR ∨ NOT ¬ WHEN IFF + - * /
@@ -30,4 +31,5 @@ Supports:
 Implement uninterpreted types
 Handle forall & exists
 Handle prelude lists & more primitives
-Handle dependant types WIP
+Handle dependant types
+Size integer relativly to their size

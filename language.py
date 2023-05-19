@@ -221,7 +221,7 @@ class Elambdacall(expr):
 
     def toRust(self) -> str:
         self.fn.isLast = True # work-around
-        return self.fn.toRust() + "(" + self.body.toRust()+")"
+        return self.fn.toRust() + ".lookup(" + self.body.toRust()+")"
 
 
 class Elet(expr):
@@ -388,7 +388,7 @@ class Erecord(expr):
             self.usedVars += field_value.usedVars
             self.fields.append((field_name, field_value))
 
-        debug("Erecord : " + self.type)
+        debug("Erecord : " + self.type.toRust())
 
     def toRust(self) -> str:
         out = self.type.toRust() + " {" 
@@ -424,9 +424,10 @@ class Eupdate(expr):
         self.env = self.lhs.env
 
         # self.lhs peut etre get lookup var (array ou record type)
-        self.lhsType : str = Eupdate.arrayOrRecord(self.lhs) # "recordtype" ou "array"
+        self.lhsType : str = Eupdate.arrayOrRecord(self.lhs) # "recordtype" ou "array" ou "function"
 
         if self.lhsType == "array":
+            # 
             self.env.get_var(Eupdate.get_array_name(self.lhs)).mutable = True
             self.index: expr = get_expr(code[2], self.env)
             self.env = self.index.env
@@ -444,6 +445,17 @@ class Eupdate(expr):
 
             self.usedVars: list[var] = self.lhs.usedVars + self.value.usedVars
             debug("Eupdate : recordtype " + self.lhs.toRust())
+
+        elif self.lhsType == "function":
+            assert isinstance(self.lhs, Evariable)
+            self.lhs.mutable = True
+            self.arg : expr = get_expr(code[2], self.env)
+            self.env = self.arg.env
+            self.value : expr = get_expr(code[3], self.env)
+            self.env = self.value.env
+
+            self.usedVars: list[var] = self.lhs.usedVars + self.arg.usedVars + self.value.usedVars
+            debug("Eupdate : function " + self.lhs.toRust())
 
         else:
             raise Exception()
@@ -464,18 +476,19 @@ class Eupdate(expr):
         else:
             raise Exception("E >> get var is neither Evariable or Eget")
 
-    def arrayOrRecord(code: expr) -> str:
+    def type(code: expr) -> str:
         if isinstance(code, Evariable):
             t : typ = code.fromEnv.type
             while True:
                 if isinstance(t, Tarray) : return "array"
                 elif isinstance(t, Trecord) : return "recordtype"
+                elif isinstance(t, Tfunction) : return "function"
                 elif isinstance(t, Tcustom) : t = t.type
                 else : raise Exception("E >> lhs of update is neither array or record, but " + str(t))
         elif isinstance(code, Eget):
-            return Eupdate.arrayOrRecord(code.recordtype)
+            return Eupdate.type(code.recordtype)
         elif isinstance(code, Elookup):
-            return Eupdate.arrayOrRecord(code.var)
+            return Eupdate.type(code.var)
         else:
             raise Exception("E >> cannot determine code if element is neither var, lookup or get")
 
@@ -492,6 +505,8 @@ class Eupdate(expr):
             else:
                 output = self.lhs.toRust() + "." + self.index + " = " + self.value.toRust() 
             output += "; " + Eupdate.get_recordtype_name(self.lhs)
+        elif self.lhsType == "function":
+            output = self.lhs.toRust() + ".update(" + self.index + ", " + self.value.toRust() + ");\n" 
         return output
 
 
@@ -529,7 +544,7 @@ class Eoperator(expr):
 
 
 class Eappication(expr):
-    # Representation of an expression, fn name must be is FN_NAMES
+    # Representation of an application expression
     # The variables must be cloned if they are used later because the
     # fn will take them in its scope (welcome to rust)
     def __init__(self, code: str, env: env) -> None:
@@ -625,10 +640,10 @@ class Efn(expr):
             output = output.strip(',') + ") -> " + self.outtype.toRust() + '{'
             output += self.body.toRust() + '}'
         else:
-            output = "Rc::new(move |"
+            output = "funtype::new(Rc::new(move |"
             for arg in self.args:
                 if self.env.get_var(arg[0]).mutable: output += "mut "
                 output += self.env.get_var(arg[0]).name + ": " + arg[1].toRust() + ","
             output = output.strip(',') + "| -> " + self.outtype.toRust() + '{'
-            output += self.body.toRust() + '})'
+            output += self.body.toRust() + '}))'
         return output

@@ -6,9 +6,15 @@ CUSTOM_TYPES : list = [] # list[typ]
 DATATYPES = ["ordstruct_adt__ordstruct_adt"] # ordstruct is a structure used in every datatype declaration
 RECORDS : list = [] # list[record]
 
+FUNCTIONS : list = [] # list[Tfunction]
+
 def getTypeDecl():
     global TYPE_DECLARATIONS
     return TYPE_DECLARATIONS
+
+def getFunctions():
+    global FUNCTIONS
+    return FUNCTIONS
 
 class typ:
     def __init__(self, code : list) -> None:
@@ -77,10 +83,20 @@ class Tarray(typ):
         return "Rc<[" + self.arrayType.toRust() + "; " + self.size + "]>"
 
 class Tfunction(typ):
-    def __init__(self, code : list) -> None:
+    def __init__(self, code : list, name = "") -> None:
         self.code = code
         self.argtype: typ = get_type(code[1])
         self.outtype: typ = get_type(code[2])
+        # generate an hash from self.argtype and self.outtype
+        self.hash = str(hash(self.argtype.toRust() + self.outtype.toRust()))
+
+        if name == "":
+            self.name = "function_" + self.hash
+        else:
+            self.name = name
+
+        global FUNCTIONS
+        FUNCTIONS.append(self.name)
 
     def toRustArray(self, arrayType : Tarray | Tcustom, fnName : str, depth = 1) -> str:
         # arraType is the target type, from type is self, we do some checks and then the conversion
@@ -101,7 +117,7 @@ class Tfunction(typ):
         return out
 
     def toRust(self) -> str:
-        return "Rc<dyn Fn(" + self.argtype.toRust() + ") -> " + self.outtype.toRust() + ">"
+        return f"funtype<{self.argtype.toRust()}, {self.outtype.toRust()}>"
 
 class Trecord(typ):
     def __init__(self, code : list, name = "") -> None:
@@ -126,9 +142,9 @@ class Trecord(typ):
             self.name = "record_" + str(len(RECORDS))
 
             global TYPE_DECLARATIONS
-            out = "#[derive(Clone)]\nstruct " + self.name + "{\n"
+            out = "#[derive(Clone, PartialEq, Eq, Hash)]\nstruct " + self.name + "{\n"
             for field in self.fields:
-                out += field[0] + " : " + field[1] + ",\n"
+                out += field[0] + " : " + field[1].toRust() + ",\n"
             out += "}\n"
             RECORDS.append(self)
             TYPE_DECLARATIONS += out
