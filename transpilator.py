@@ -10,13 +10,23 @@ from language import *
 from datatypes import *
 
 header = """
-#![allow(non_snake_case, dead_code, non_upper_case_globals, non_camel_case_types, unused_variables, unused_parens)]
+#![allow(
+    non_snake_case,
+    dead_code,
+    non_upper_case_globals,
+    non_camel_case_types,
+    unused_variables,
+    unused_parens,
+    unused_imports
+)]
 
 use std::rc::Rc
 use std::clone::Clone;
-use std::hash::Hash;"""
+use std::hash::Hash;
+use std::collections::HashMap;
+use std::any::Any;"""
 
-datatype_header = """use std::any::Any;
+datatype_header = """
 
 fn Rc_unwrap_or_clone<T : Clone>(rc : Rc<T>) -> T{
     Rc::try_unwrap(rc).unwrap_or_else(|rc| (*rc).clone())
@@ -27,7 +37,6 @@ struct ordstruct_adt__ordstruct_adt {}
 """
 
 function_header = """
-use std::collections::HashMap;
 
 struct funtype<A: Eq + Hash, V : Clone> {
     explicit: Rc<dyn Fn(A) -> V>,

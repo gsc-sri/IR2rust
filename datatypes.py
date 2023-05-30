@@ -15,8 +15,19 @@ class datatype:
 
         # Unpacking
         while isinstance(self.code[0][0], list): self.code = self.code[0]
-        
 
+        # Use the format theory__accessor__rustType
+        # ie btree__val__i32 
+        # if shared , ie same accessor same type , we should match the enum 
+        # if not shared, we should unpack the enum (unsafe to be faster ?)
+        # https://rust-lang.github.io/unsafe-code-guidelines/layout/enums.html
+        # note that the size of the datatype will be of the bigger possibility:
+        # https://doc.rust-lang.org/reference/items/unions.html
+        # we will probably need an accessor operator
+
+        # apres faudra revenir au flameggraph de la rpz en fonction des arrays
+        # change panic! to unreachable!
+        
         # --- TRAIT CONSTRUCTION ---
         self.out += "trait " + self.name + "_trait {"
         i = 0
@@ -29,14 +40,16 @@ class datatype:
 
             # accessor functions
             for accessor in constructor[2:]:
-                self.out += "fn " + self.name + "__" + accessor[1] + "(self : Self) -> " + get_type(accessor[2]).toRust() + ";\n"
-                DATATYPE_FUNCTIONS.append(self.name + "__" + accessor[1])
+                self.out += "fn " + self.name + "__" + accessor[1] + "__" + get_type(accessor[2]).toRust() + "(self : Self) -> " + get_type(accessor[2]).toRust() + ";\n"
+                DATATYPE_FUNCTIONS.append(self.name + "__"  + accessor[1] + "__" + get_type(accessor[2]).toRust())
             
             # update functions
             for accessor in constructor[2:]:
-                self.out += "fn " + self.name + "__" + accessor[1] + "__update" 
+                self.out += "fn " + self.name + "__"  + accessor[1] + "__" + get_type(accessor[2]).toRust() + "__update" 
                 self.out += "(self : Self, "+ accessor[1] + " : " + get_type(accessor[2]).toRust() +") -> "+ self.name +" ;\n"
-                DATATYPE_FUNCTIONS.append(self.name + "__" + accessor[1] + "__update" )
+                DATATYPE_FUNCTIONS.append(self.name + "__"  + accessor[1] + "__" + get_type(accessor[2]).toRust() + "__update"  )
+
+            ### END OF REWRITE OF TYPE
 
             # constructors
             self.out += "fn " + self.name + "__" + cname + "("
@@ -94,12 +107,12 @@ class datatype:
 
             # accessor functions
             for accessor in constructor[2:]:
-                self.out += "fn " + self.name + "__" + accessor[1] + "(self : Self) -> " + get_type(accessor[2]).toRust() + "{\n"
+                self.out += "fn " + self.name + "__" + cname + "__" + accessor[1] + "(self : Self) -> " + get_type(accessor[2]).toRust() + "{\n"
                 self.out += "Rc_unwrap_or_clone(Rc::downcast::<"+ constructor[1] +">(self.data).unwrap())." + accessor[1] + "}\n"
             
             # update functions
             for accessor in constructor[2:]:
-                self.out += "fn " + self.name + "__" + accessor[1] + "__update" 
+                self.out += "fn " + self.name + "__" + cname + "__" + accessor[1] + "__update" 
                 self.out += "(self : Self, "+ accessor[1] + " : " + get_type(accessor[2]).toRust() +") -> "+ self.name +" {\n"
                 self.out += "let mut updated = Rc::downcast::<"+ constructor[1] +">(self.data).unwrap();\n"
                 self.out += "Rc::make_mut(&mut updated)." + accessor[1] + " = " + accessor[1] + ";\n"

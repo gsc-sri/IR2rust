@@ -174,14 +174,14 @@ class Trecord(typ):
         return self.name
 
 
-def get_type(t : str | list) -> str:
+def get_type(t : str | list) -> typ:
     # Get rust type from IR type string or array
 
     if isinstance(t, str):
         t = t.strip(" \n")
         if t == "mpq":
-            #return Treal(t)
-            return Tint(t)
+            return Treal(t)
+            #return Tint(t)
         elif t == "bool" or t == "boolean":
             return Tbool(t)
         else:
