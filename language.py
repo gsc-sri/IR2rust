@@ -556,10 +556,7 @@ class Eappication(expr):
         except:
             raise Exception("E >> error while parsing function: " + code)
 
-        self.isDatatype = self.name in DATATYPE_FUNCTIONS
-
         self.args: list[Evariable] = []
-        debug("Eapplication code >> " + str(code))
         for argCode in self.code[1:]:
             if not isinstance(argCode, str) or argCode.strip(' \n') != 'nil':
                 self.args.append(get_expr(argCode, self.env))
@@ -567,17 +564,12 @@ class Eappication(expr):
 
         self.usedVars: list[var] = [arg.usedVars for arg in self.args]
 
-        debug("Eapplication : application " + self.name + " from dt " + str(self.isDatatype))
+        debug("Eapplication : application " + self.name + " from dt ")
 
     def toRust(self) -> str:
-        if self.isDatatype:
-            output = self.args[0].toRust() + "." + self.name + "("
-            for arg in self.args[1:]:
-                output += arg.toRust() + ','
-        else:
-            output = self.name + "("
-            for arg in self.args:
-                output += arg.toRust() + ','
+        output = self.name + "("
+        for arg in self.args:
+            output += arg.toRust() + ','
         output = output.strip(',') + ")"
         return output
 
