@@ -204,7 +204,7 @@ class Evalue(expr):
         if isinstance(self.returnType, Treal):
             return self.code + "f32"
         elif isinstance(self.returnType, Tint):
-            return self.code + self.returnType.rust
+            return self.code + "i32"
         else:
             return self.code
 

@@ -74,7 +74,7 @@ class datatype:
 
         for constructor in self.code:
             for accessor in constructor[2:]:
-                if self.name + "__" + accessor[1] in FUNCTIONS:
+                if self.name + "__" + accessor[1] in getFnNames():
                     print("DEBUG >> " + self.name + "__" + accessor[1] + " already found.") # info
                 else:
                     self.out += "fn " + self.name + "__" + accessor[1] + "<T> (arg : "+ self.name +") -> T {"

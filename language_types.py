@@ -34,30 +34,9 @@ class typ:
 class Tint(typ):
     def __init__(self, code : list) -> None:
         self.code = code
-        if code[1].strip(" ") != "*":
-            self.low = int(code[1])
-        else:
-            self.low = None
-        if code[2].strip(" ")!= "*":
-            self.high = int(code[2])
-        else:
-            self.high = None
-        if self.low == None or self.high == None:
-            self.rust = "i32"
-        else:
-            if self.low >= 0:
-                self.rust = "u"
-            else:
-                self.rust = "i"
-            if self.high <= 255:
-                self.rust += "8"
-            elif self.high <= 65535:
-                self.rust += "16"
-            else:
-                self.rust += "32"
 
     def toRust(self) -> str:
-        return self.rust
+        return "i32"
 
 class Treal(typ):
     def __init__(self, code : list) -> None:

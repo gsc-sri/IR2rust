@@ -11,7 +11,7 @@ can be found here : https://github.com/gsc-sri/PVS , the pvs2rust.lisp file shou
 
 Supports:
  - `let`, `lett`, `if`, `release`
- - Integers
+ - Integers (only `i32` because casting would result in a big time loss + overflow detection of rust)
  - Arrays : `lookup` & `update` in an optimized way + creation from function (`lett`)
  - Lambda functions : `lambda`
  - Enums
@@ -43,10 +43,6 @@ Types like :
 ```PVS
 a : TYPE = (b : below(10), c : below(b))
 ```
-
-### Size integer relativly to their size + handle real Evalues WIP
-
-Need to add return_type for all expressions.
 
 ### Understand why the actual fn representation is so slow compared to arrays
 
