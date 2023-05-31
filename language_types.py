@@ -8,13 +8,21 @@ RECORDS : list = [] # list[record]
 
 FUNCTIONS : list = [] # list[Tfunction]
 
+def getFnNames():
+    fnNames = []
+    for f in FUNCTIONS:
+        fnNames.append(f.name)
+    return fnNames
+
+def getFnByName(name : str):
+    for f in FUNCTIONS:
+        if f.name == name:
+            return f
+    return None
+
 def getTypeDecl():
     global TYPE_DECLARATIONS
     return TYPE_DECLARATIONS
-
-def getFunctions():
-    global FUNCTIONS
-    return FUNCTIONS
 
 class typ:
     def __init__(self, code : list) -> None:
@@ -26,9 +34,30 @@ class typ:
 class Tint(typ):
     def __init__(self, code : list) -> None:
         self.code = code
+        if code[1].strip(" ") != "*":
+            self.low = int(code[1])
+        else:
+            self.low = None
+        if code[2].strip(" ")!= "*":
+            self.high = int(code[2])
+        else:
+            self.high = None
+        if self.low == None or self.high == None:
+            self.rust = "i32"
+        else:
+            if self.low >= 0:
+                self.rust = "u"
+            else:
+                self.rust = "i"
+            if self.high <= 255:
+                self.rust += "8"
+            elif self.high <= 65535:
+                self.rust += "16"
+            else:
+                self.rust += "32"
 
     def toRust(self) -> str:
-        return "i32"
+        return self.rust
 
 class Treal(typ):
     def __init__(self, code : list) -> None:
@@ -83,12 +112,20 @@ class Tarray(typ):
         return "Rc<[" + self.arrayType.toRust() + "; " + self.size + "]>"
 
 class Tfunction(typ):
-    def __init__(self, code : list, name = "") -> None:
+    def __init__(self, code : list, name = "", explicit = []) -> None:
+        if code == None:
+            # explicit = [ [argType1, argType2, ...], outputType ]
+            assert explicit != []
+            self.argtype : list[typ] = explicit[0]
+            self.outtype : typ = explicit[1]
+            assert name != ""
+            self.name = name
+            return 
         self.code = code
-        self.argtype: typ = get_type(code[1])
+        self.argtype: list[typ] = [get_type(code[1])]
         self.outtype: typ = get_type(code[2])
         # generate an hash from self.argtype and self.outtype
-        self.hash = str(hash(self.argtype.toRust() + self.outtype.toRust()))
+        self.hash = str(hash(self.argtype[0].toRust() + self.outtype.toRust()))
 
         if name == "":
             self.name = "function_" + self.hash
@@ -96,7 +133,7 @@ class Tfunction(typ):
             self.name = name
 
         global FUNCTIONS
-        FUNCTIONS.append(self.name)
+        FUNCTIONS.append(self)
 
     def toRustArray(self, arrayType : Tarray | Tcustom, fnName : str, depth = 1) -> str:
         # arraType is the target type, from type is self, we do some checks and then the conversion
@@ -112,12 +149,14 @@ class Tfunction(typ):
         if isinstance(self.outtype, Tfunction):
             out = "Rc::new(core::array::from_fn::<"+ arrayType.arrayType.toRust() +", "+ arrayType.size +", _>(|j"+ str(depth) +" : usize| "+ self.outtype.toRustArray(t, fnName +"(j"+ str(depth) +" as i32)", depth + 1) +"))\n;"
         else:
-            assert(isinstance(self.argtype, Tint)) 
+            assert(isinstance(self.argtype[0], Tint)) 
             out = "Rc::new(core::array::from_fn::<"+ arrayType.arrayType.toRust() +", "+ arrayType.size +", _>(|j"+ str(depth) +" : usize|  "+ fnName +"(j"+ str(depth) +" as i32)))"
         return out
 
     def toRust(self) -> str:
-        return f"funtype<{self.argtype.toRust()}, {self.outtype.toRust()}>"
+        if len(self.argtype) > 1:
+            raise Exception("E >> Too many arguments for to Rust")
+        return f"funtype<{self.argtype[0].toRust()}, {self.outtype.toRust()}>"
 
 class Trecord(typ):
     def __init__(self, code : list, name = "") -> None:
@@ -149,6 +188,12 @@ class Trecord(typ):
             RECORDS.append(self)
             TYPE_DECLARATIONS += out
 
+    def getTypeOfEntry(self, entry : str) -> typ:
+        for field in self.fields:
+            if field[0] == entry:
+                return field[1]
+        return None
+
     def __eq__(self, other): 
         code = other.code
         ret = (isinstance(self.code, list) and isinstance(code, list)
@@ -173,6 +218,21 @@ class Trecord(typ):
     def toRust(self) -> str:
         return self.name
 
+class Tdatatype(typ):
+    def __init__(self, code : list, name = "") -> None:
+        self.code = code
+        self.name = name
+
+    def toRust(self) -> str:
+        return self.name
+    
+class Tgeneric(typ):
+    def __init__(self, code : list, name = "") -> None:
+        self.code = code
+        self.name = name
+
+    def toRust(self) -> str:
+        return "T"
 
 def get_type(t : str | list) -> typ:
     # Get rust type from IR type string or array

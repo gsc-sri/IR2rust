@@ -84,7 +84,7 @@ if __name__ == "__main__":
             rust += datatype(parsed, name, th).toRust()
         else:
             parsed = get_els_from_str(code)
-            e = get_expr(parsed[0], env(), name)
+            e = get_expr(parsed[0], env(), None, name)
             if isinstance(e, Efn) or isinstance(e, Evalue):
                 rust += e.toRust() + "\n\n"
             else:

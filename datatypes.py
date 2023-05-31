@@ -1,6 +1,5 @@
 from language_types import *
 
-DATATYPE_FUNCTIONS = []
 # [ "btree_adt__recognize__leafp", ... ]
 
 class datatype:
@@ -11,7 +10,7 @@ class datatype:
         self.out : str = ""
         global DATATYPES
         DATATYPES.append(name)
-        global DATATYPE_FUNCTIONS
+        global FUNCTIONS
 
         # Unpacking
         while isinstance(self.code[0][0], list): self.code = self.code[0]
@@ -47,14 +46,16 @@ class datatype:
 
         for constructor in self.code:
             self.out += "fn " + self.name + "__" + constructor[1] + "("
+            argTypeList : list[typ] = []
             for accessor in constructor[2:]:
                 self.out += accessor[1] + " : " + get_type(accessor[2]).toRust() + ","
+                argTypeList.append(get_type(accessor[2]))
             self.out += ") -> " + self.name + " {\n"
             self.out += self.name + "::" + constructor[1] + "(" + constructor[1] + "{"
             for accessor in constructor[2:]:
                 self.out += accessor[1] + ": Rc::new(" + accessor[1] + "),"
             self.out += "})\n}\n\n"
-            DATATYPE_FUNCTIONS.append(self.name + "__" + constructor[1])
+            FUNCTIONS.append(Tfunction(None, self.name + "__" + constructor[1], [argTypeList, Tdatatype(None, self.name)]))
 
         # --- RECOGNIZERS ---
         
@@ -67,13 +68,13 @@ class datatype:
                 else:
                     self.out += self.name + "::" + cons[1] + "(ref " + cons[1] + ") => false,\n"
             self.out += "}\n}\n\n"
-            DATATYPE_FUNCTIONS.append(self.theory + "__" + constructor[1] + "p")
+            FUNCTIONS.append(Tfunction(None, self.theory + "__" + constructor[1] + "p", [[Tdatatype(None, self.name)], Tbool]))
 
         # --- ACCESSORS --- 
 
         for constructor in self.code:
             for accessor in constructor[2:]:
-                if self.name + "__" + accessor[1] in DATATYPE_FUNCTIONS:
+                if self.name + "__" + accessor[1] in FUNCTIONS:
                     print("DEBUG >> " + self.name + "__" + accessor[1] + " already found.") # info
                 else:
                     self.out += "fn " + self.name + "__" + accessor[1] + "<T> (arg : "+ self.name +") -> T {"
@@ -84,13 +85,13 @@ class datatype:
                             self.out += self.name + "::" + cons[1] + "(ref " + cons[1] + ") => unsafe{std::mem::transmute_copy(&Rc_unwrap_or_clone("+ cons[1] + "." + accessor[1] +".clone()))},\n"
                     self.out += "_ => unreachable!()\n"
                     self.out += "}\n}\n\n"
-                    DATATYPE_FUNCTIONS.append(self.name + "__" + accessor[1])
+                    FUNCTIONS.append(Tfunction(None, self.name + "__" + accessor[1], [[Tdatatype(None, self.name)], Tgeneric(None)]))
 
         # --- UPDATE FUNCTIONS ---
 
         for constructor in self.code:
             for accessor in constructor[2:]:
-                if self.name + "__" + accessor[1] + "__update" in DATATYPE_FUNCTIONS:
+                if self.name + "__" + accessor[1] + "__update" in getFnNames():
                     print("DEBUG >> " + self.name + "__" + accessor[1] + "__update already found.") # info
                 else :
                     self.out += "fn " + self.name + "__" + accessor[1] + "__update<T> (arg : " + self.name + ", "
@@ -108,7 +109,7 @@ class datatype:
                             self.out +=  "}),\n"
                     self.out += "_ => unreachable!()\n"
                     self.out += "}\n}\n\n"
-                    DATATYPE_FUNCTIONS.append(self.name + "__" + accessor[1] + "__update" )
+                    FUNCTIONS.append(Tfunction(None, self.name + "__" + accessor[1] + "__update", [[Tdatatype(None, self.name), Tgeneric(None)], Tdatatype(None, self.name)]))
 
 
     def toRust(self):

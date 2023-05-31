@@ -20,8 +20,8 @@ OPERATOR_CORR = {"+": "$1 + $2",
                  "<=": "$1 <= $2",
                  ">": "$1 > $2",
                  ">=": "$1 >= $2",
-                 "floor": "$1.floor() as i32",
-                 "ceiling": "$1.ceiling() as i32",
+                 "floor": "$1.floor()",
+                 "ceiling": "$1.ceiling()",
                  "ord": "0",
                  "TRUE": "true",
                  "FALSE": "false",
@@ -50,7 +50,7 @@ CONSTS = ['true', 'false'] # we may add user-declared consts in Evalue
 class expr:
     # abstract class for expressions (= everything)
     # the init must parse
-    def __init__(self, code : str | list , env) -> None:
+    def __init__(self, code : str | list , env, returnType: typ) -> None:
         self.code: str = None
         self.env: list[var] = None
         self.usedVars: list[var] = None
@@ -95,44 +95,45 @@ class env:
         return output
 
 
-def get_expr(tabl: list[list | str] | str, env: env, name = "") -> expr:
+def get_expr(tabl: list[list | str] | str, env: env, returnType: typ, name = "") -> expr:
     # From ['object', ...] to corresponding expr
     if isinstance(tabl, str): # int bool etc
-        return Evalue(tabl, env, name)
+        return Evalue(tabl, env, returnType, name)
     try:
         key = tabl[0]
         if not isinstance(key, str):  # handles cases such as [[ thing ]]
             if len(tabl) < 2:
-                return get_expr(key, env)
+                return get_expr(key, env, returnType)
             else:
                 # lambda calls : [[expr fn] [expr arg]]
-                return Elambdacall(tabl, env)
+                return Elambdacall(tabl, env, returnType)
         else:
             key = key.strip(' \n')  # hence str
     except:
         raise Exception("E >> error getting expr from : " + str(tabl))
 
-    if key == "lambda": return Efn(tabl, env, name)
-    elif key == "let": return Elet(tabl, env)
-    elif key == "if": return Eif(tabl, env)
-    elif key == "release": return Erelease(tabl, env)
-    elif key == "lett": return Elett(tabl, env)
-    elif key == "record": return Erecord(tabl, env)
-    elif key == "lookup": return Elookup(tabl, env)
-    elif key == "get": return Eget(tabl, env)
-    elif key == "update": return Eupdate(tabl, env)
-    elif key in OPERATOR_CORR.keys(): return Eoperator(tabl, env)
-    elif key[:4] == "ivar" or key == "last": return Evariable(tabl, env)
-    else: return Eappication(tabl, env)
+    if key == "lambda": return Efn(tabl, env, returnType, name)
+    elif key == "let": return Elet(tabl, env, returnType)
+    elif key == "if": return Eif(tabl, env, returnType)
+    elif key == "release": return Erelease(tabl, env, returnType)
+    elif key == "lett": return Elett(tabl, env, returnType)
+    elif key == "record": return Erecord(tabl, env, returnType)
+    elif key == "lookup": return Elookup(tabl, env, returnType)
+    elif key == "get": return Eget(tabl, env, returnType)
+    elif key == "update": return Eupdate(tabl, env, returnType)
+    elif key in OPERATOR_CORR.keys(): return Eoperator(tabl, env, returnType)
+    elif key[:4] == "ivar" or key == "last": return Evariable(tabl, env, returnType)
+    else: return Eappication(tabl, env, returnType)
 
 
 class Evariable(expr):
     # Representation of a variable with possibly a last before
     # Here is a representation for variables as expr ! Hence they
     # must already be in the env. For declaration see Elet and Efn
-    def __init__(self, code: str, env: env) -> None:
+    def __init__(self, code: str, env: env, returnType: typ) -> None:
         self.code = code
         self.env = env
+        self.returnType = returnType
 
         if not Evariable.isVariable(self.code):
             raise Exception("E >> can't parse variable : " + self.code)
@@ -175,9 +176,10 @@ class Evariable(expr):
 
 class Evalue(expr):
     # Representation of a value sur as "123"
-    def __init__(self, code: str, env: env, name = "") -> None:
+    def __init__(self, code: str, env: env, returnType: typ, name = "") -> None:
         self.code = code.strip(' \n')
         self.env = env
+        self.returnType = returnType
         self.usedVars: list[var] = []
         self.name = name.strip(' \n')
         global CONSTS
@@ -193,26 +195,32 @@ class Evalue(expr):
             CONSTS.append(self.name)
             debug("Evalue : declaring const : " + self.code)
         else:
-            debug("Evalue : returning value " + code)
+            debug("Evalue : returning value " + code + " of type " + str(self.returnType))
 
     def isValue(arr) -> bool:
-        return arr.isdigit()
+        return arr.isdigit() # only integers in IR
 
     def toRust(self) -> str:
-        return self.code
+        if isinstance(self.returnType, Treal):
+            return self.code + "f32"
+        elif isinstance(self.returnType, Tint):
+            return self.code + self.returnType.rust
+        else:
+            return self.code
 
 
 class Elambdacall(expr):
     # Representation of a lambda call: the first element is a var
     # containing a fn, the following are the arguments
-    def __init__(self, code: str, env: env) -> None:
+    def __init__(self, code: str, env: env, returnType: typ) -> None:
 
         self.code = code
         self.env = env
+        self.returnType = returnType
 
-        self.fn = get_expr(self.code[0], self.env) # type 
+        self.fn = get_expr(self.code[0], self.env, Tfunction) # type 
 
-        self.body = get_expr(self.code[1], self.env)
+        self.body = get_expr(self.code[1], self.env, None)
         self.env = self.body.env
 
         self.usedVars: list[var] = self.fn.usedVars + self.body.usedVars
@@ -228,9 +236,10 @@ class Elet(expr):
     # les variables modifiees dans value ne doivent pas etre utilisees plus tard
     # sinon faut copier TODO : mettre un check pour ça
     # Representation of a let. It changes the env with the new variable
-    def __init__(self, code: str, env: env) -> None:
+    def __init__(self, code: str, env: env, returnType: typ) -> None:
         self.code = code
         self.env: env = env
+        self.returnType = returnType
 
         self.varName: str = self.code[1].strip(' \n')
         self.varType: typ = get_type(self.code[2])
@@ -239,10 +248,10 @@ class Elet(expr):
             raise Exception("E >> trying to assign null value")
             # self.middle cannot be nil (we shall modify the pvs2ir code in that objective)
 
-        self.middle = get_expr(self.code[3], self.env)
+        self.middle = get_expr(self.code[3], self.env, self.varType)
         self.env = self.middle.env
         self.env.variables.append(var(self.varName, self.varType, self))
-        self.right = get_expr(self.code[4], self.env)
+        self.right = get_expr(self.code[4], self.env, self.returnType)
 
         self.usedVars: list[var] = self.right.usedVars
         self.usedVars += self.middle.usedVars
@@ -265,19 +274,20 @@ class Elet(expr):
 class Elett(expr):
     # Representation of a lett. It adds a new name for the variable in the env
     # and does the conversion if the types are different
-    def __init__(self, code: str | list, env: env) -> None:
+    def __init__(self, code: str | list, env: env, returnType: typ) -> None:
         self.code = code
         self.env = env
+        self.returnType = returnType
 
         self.varName : str = self.code[1].strip(' \n')
         self.varType : typ = get_type(self.code[2])
         self.fromType : typ = get_type(self.code[3])
-        self.expr : expr = get_expr(self.code[4], self.env)
+        self.expr : expr = get_expr(self.code[4], self.env, self.varType) # maybe self.fromType
         self.env = self.expr.env 
 
         self.env.variables.append(var(self.varName, self.varType, self))
 
-        self.body: expr = get_expr(self.code[5], self.env)
+        self.body: expr = get_expr(self.code[5], self.env, self.returnType)
         self.env = self.body.env
 
         self.usedVars: list[var] = self.body.usedVars + self.expr.usedVars
@@ -307,15 +317,16 @@ class Elett(expr):
 
 class Eif(expr):
     # Representation of a if then else
-    def __init__(self, code: str, env: env) -> None:
+    def __init__(self, code: str, env: env, returnType: typ) -> None:
         self.code = code
         self.env = env
+        self.returnType = returnType
 
-        self.cond: expr = get_expr(self.code[1], self.env)
+        self.cond: expr = get_expr(self.code[1], self.env, Tbool)
         self.env = self.cond.env
-        self.true: expr = get_expr(self.code[2], self.env)
+        self.true: expr = get_expr(self.code[2], self.env, self.returnType)
         self.env = self.true.env  # conservative
-        self.false: expr = get_expr(self.code[3], self.env)
+        self.false: expr = get_expr(self.code[3], self.env, self.returnType)
         self.env = self.false.env
 
         self.usedVars: list[var] = self.cond.usedVars + self.true.usedVars + self.false.usedVars
@@ -331,26 +342,28 @@ class Eif(expr):
 
 class Erelease(expr):
     # Representation of release
-    def __init__(self, code: str, env: env) -> None:
+    def __init__(self, code: str, env: env, returnType: typ) -> None:
         self.code = code
         self.env = env
+        self.returnType = returnType
         self.usedVars: list[var] = []
         debug("Erelease : ignoring")
 
     def toRust(self) -> str:
-        return get_expr(self.code[3], self.env).toRust()
+        return get_expr(self.code[3], self.env, self.returnType).toRust()
 
 
 class Elookup(expr):
     # Lookup of an array
-    def __init__(self, code: str, env: env) -> None:
+    def __init__(self, code: str, env: env, returnType: typ) -> None:
         self.code = code
         self.env = env
+        self.returnType = returnType
 
-        self.var: expr = get_expr(self.code[1], self.env)
+        self.var: expr = get_expr(self.code[1], self.env, Tarray)
         self.env = self.var.env
 
-        self.index: expr = get_expr(self.code[2], self.env)
+        self.index: expr = get_expr(self.code[2], self.env, Tint)
         self.env = self.index.env
 
         self.usedVars: list[var] = self.var.usedVars + self.index.usedVars
@@ -372,18 +385,23 @@ class Elookup(expr):
             raise Exception("E >> Left hand side array is neither lookup or variable")
 
 class Erecord(expr):
-    def __init__(self, code: str | list, env : env) -> None:
+    def __init__(self, code: str | list, env : env, returnType: typ) -> None:
         self.code = code
         self.env = env
+        self.returnType = returnType
 
         self.type : typ = get_type(self.code[1])
+        self.rootType : Trecord = self.type if not isinstance(self.type, Tcustom) else self.type.type
         self.fields : list[(str, expr)] = []
         self.usedVars : list[var] = []
 
+        i = 0
         for field in self.code[2]:
             assert field[0].strip(' \n') == "="
             field_name : str = field[1].strip(' \n')
-            field_value : expr = get_expr(field[2], self.env)
+            field_type : typ = self.rootType.fields[i][1]
+            field_value : expr = get_expr(field[2], self.env, field_type)
+            i += 1
             self.env = field_value.env
             self.usedVars += field_value.usedVars
             self.fields.append((field_name, field_value))
@@ -398,11 +416,13 @@ class Erecord(expr):
         return out
 
 class Eget(expr):
-    def __init__(self, code: str | list, env : env) -> None:
+    # lookup on a struct 
+    def __init__(self, code: str | list, env : env, returnType: typ) -> None:
         self.code = code
         self.env = env
+        self.returnType = returnType
 
-        self.recordtype : expr = get_expr(self.code[1], self.env)
+        self.recordtype : expr = get_expr(self.code[1], self.env, Trecord)
         self.index : str = code[2].strip(" \n")
 
         self.usedVars: list[var] = self.recordtype.usedVars 
@@ -416,42 +436,44 @@ class Eget(expr):
         return self.recordtype.toRust() + "." + self.index
 
 class Eupdate(expr):
-    def __init__(self, code: str | list, env : env) -> None:
-        self.code : str = code
-        self.env= env
+    def __init__(self, code: str | list, env : env, returnType: typ) -> None:
+        self.code = code
+        self.env = env
+        self.returnType = returnType
 
-        self.lhs : expr = get_expr(self.code[1], self.env)
+        self.lhs : expr = get_expr(self.code[1], self.env, None) # Tarray or Trecord or Tfunction
         self.env = self.lhs.env
 
         # self.lhs peut etre get lookup var (array ou record type)
-        self.lhsType : str = Eupdate.type(self.lhs) # "recordtype" ou "array" ou "function"
+        self.lhsType : typ = Eupdate.type(self.lhs) # "recordtype" ou "array" ou "function"
 
-        if self.lhsType == "array":
+        if isinstance(self.lhsType, Tarray):
             # 
             self.env.get_var(Eupdate.get_array_name(self.lhs)).mutable = True
-            self.index: expr = get_expr(code[2], self.env)
+            self.index: expr = get_expr(code[2], self.env, Tint)
             self.env = self.index.env
-            self.value: expr = get_expr(code[3], self.env)
+            self.value: expr = get_expr(code[3], self.env, self.lhsType.arrayType)
             self.env = self.value.env
 
             self.usedVars: list[var] = self.lhs.usedVars + self.index.usedVars + self.value.usedVars
             debug("Eupdate : array " + self.lhs.toRust())
 
-        elif self.lhsType == "recordtype":
+        elif isinstance(self.lhsType, Trecord):
             self.env.get_var(Eupdate.get_recordtype_name(self.lhs)).mutable = True
             self.index : str = code[2].strip(" \n")
-            self.value : expr = get_expr(code[3], self.env)
+            correspondingType : typ = self.lhsType.getTypeOfEntry(self.index)
+            self.value : expr = get_expr(code[3], self.env, correspondingType)
             self.env = self.value.env
 
             self.usedVars: list[var] = self.lhs.usedVars + self.value.usedVars
             debug("Eupdate : recordtype " + self.lhs.toRust())
 
-        elif self.lhsType == "function":
+        elif isinstance(self.lhsType, Tfunction):
             assert isinstance(self.lhs, Evariable)
             self.lhs.mutable = True
-            self.arg : expr = get_expr(code[2], self.env)
+            self.arg : expr = get_expr(code[2], self.env, self.lhsType.argtype)
             self.env = self.arg.env
-            self.value : expr = get_expr(code[3], self.env)
+            self.value : expr = get_expr(code[3], self.env, self.lhsType.outtype)
             self.env = self.value.env
 
             self.usedVars: list[var] = self.lhs.usedVars + self.arg.usedVars + self.value.usedVars
@@ -476,13 +498,13 @@ class Eupdate(expr):
         else:
             raise Exception("E >> get var is neither Evariable or Eget")
 
-    def type(code: expr) -> str:
+    def type(code: expr) -> typ:
         if isinstance(code, Evariable):
             t : typ = code.fromEnv.type
             while True:
-                if isinstance(t, Tarray) : return "array"
-                elif isinstance(t, Trecord) : return "recordtype"
-                elif isinstance(t, Tfunction) : return "function"
+                if isinstance(t, Tarray) : return Tarray
+                elif isinstance(t, Trecord) : return Trecord
+                elif isinstance(t, Tfunction) : return Tfunction
                 elif isinstance(t, Tcustom) : t = t.type
                 else : raise Exception("E >> lhs of update is neither array or record, but " + str(t))
         elif isinstance(code, Eget):
@@ -512,9 +534,10 @@ class Eupdate(expr):
 
 class Eoperator(expr):
     # Representation of an operator, which is some functions (see OPERATOR_CORR)
-    def __init__(self, code: str, env: env) -> None:
+    def __init__(self, code: str, env: env, returnType: typ) -> None:
         self.code = code
         self.env = env
+        self.returnType = returnType
 
         try:
             self.op = OPERATOR_CORR[code[0].strip(' \n')]
@@ -528,7 +551,8 @@ class Eoperator(expr):
         self.args: list[expr] = []
         for i in range(self.nbArgs):
             c = self.code[i + 1]
-            self.args.append(get_expr(c, self.env))
+            self.args.append(get_expr(c, self.env, self.returnType)) # if the output type is t then we expect 
+                                                                    # the args to be of type t
             self.env = self.args[-1].env
             
         self.usedVars: list[var] = []
@@ -547,19 +571,27 @@ class Eappication(expr):
     # Representation of an application expression
     # The variables must be cloned if they are used later because the
     # fn will take them in its scope (welcome to rust)
-    def __init__(self, code: str, env: env) -> None:
+    def __init__(self, code: str, env: env, returnType: typ) -> None:
         self.code = code
         self.env = env
+        self.returnType = returnType # TODO
 
         try:
             self.name = code[0].strip(' \n')
         except:
             raise Exception("E >> error while parsing function: " + code)
+        
+        self.type : Tfunction = getFnByName(self.name) # None if not found
 
         self.args: list[Evariable] = []
+        i = 0
         for argCode in self.code[1:]:
             if not isinstance(argCode, str) or argCode.strip(' \n') != 'nil':
-                self.args.append(get_expr(argCode, self.env))
+                if self.type != None:
+                    self.args.append(get_expr(argCode, self.env, self.type.argtype[i]))
+                    i += 1
+                else :
+                    self.args.append(get_expr(argCode, self.env, None))
                 self.env = self.args[-1].env
 
         self.usedVars: list[var] = [arg.usedVars for arg in self.args]
@@ -577,9 +609,10 @@ class Eappication(expr):
 class Efn(expr):
     # Representation of a function, it updates the env and returns a
     # boxed (std::rc) closure, except on first level
-    def __init__(self, code: str, env: env, name="") -> None:
+    def __init__(self, code: str, env: env, returnType: typ, name="") -> None:
         self.code = code
         self.name = name
+        self.returnType = returnType
         self.firstLevel : bool = name != ""
 
         self.args : list = []  # [[name, type, realName]]
@@ -598,10 +631,12 @@ class Efn(expr):
                 self.env.get_var(arg[0]).names.append(arg[2])
                 self.env.get_var(arg[0]).name = arg[2]
 
-        self.body: expr = get_expr(self.body, self.env)
+        self.body: expr = get_expr(self.body, self.env, self.outtype)
         self.env = self.body.env
 
         self.usedVars: list[var] = self.body.usedVars
+        global FUNCTIONS
+        FUNCTIONS.append(Tfunction(None, self.name, [[arg[1] for arg in self.args], self.outtype]))
 
         debug("Efn : function " + str(self.args) + " -> " + str(self.outtype))
 
