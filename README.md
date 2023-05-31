@@ -28,8 +28,28 @@ Supports:
  - Uninterpreted types (going with generic types)
 
 ## TODO
-Implement uninterpreted types
-Handle forall & exists
-Handle prelude lists & more primitives
-Handle dependant types
-Size integer relativly to their size
+### Implement uninterpreted types
+Should be quite straitforward with Rust generic type. But check for compatibility with datatypes accessors and update functions, that already use generic types.
+
+### Handle forall & exists
+Only for "small" types.
+
+### Handle prelude lists & more primitives
+
+
+### Handle dependant types
+
+Types like : 
+```PVS
+a : TYPE = (b : below(10), c : below(b))
+```
+
+### Size integer relativly to their size + handle real Evalues WIP
+
+Need to add return_type for all expressions.
+
+### Understand why the actual fn representation is so slow compared to arrays
+
+Use flamegraph : 
+Some updates are very slow due to copying,
+We should also consider another hashing algorithm.

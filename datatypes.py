@@ -59,8 +59,8 @@ class datatype:
         # --- RECOGNIZERS ---
         
         for constructor in self.code:
-            self.out += "fn " + self.theory + "__" + constructor[1] + "p (a : "+ self.name +") -> bool {"
-            self.out += "match a {\n"
+            self.out += "fn " + self.theory + "__" + constructor[1] + "p (arg : "+ self.name +") -> bool {"
+            self.out += "match arg {\n"
             for cons in self.code:
                 if cons[1] == constructor[1]:
                     self.out += self.name + "::" + cons[1] + "(ref " + cons[1] + ") => true,\n"
@@ -76,8 +76,8 @@ class datatype:
                 if self.name + "__" + accessor[1] in DATATYPE_FUNCTIONS:
                     print("DEBUG >> " + self.name + "__" + accessor[1] + " already found.") # info
                 else:
-                    self.out += "fn " + self.name + "__" + accessor[1] + "<T> (a : "+ self.name +") -> T {"
-                    self.out += "match a {\n"
+                    self.out += "fn " + self.name + "__" + accessor[1] + "<T> (arg : "+ self.name +") -> T {"
+                    self.out += "match arg {\n"
                     for cons in self.code:
                         accessors_cons = cons[2:]
                         if accessor in accessors_cons:
@@ -93,9 +93,9 @@ class datatype:
                 if self.name + "__" + accessor[1] + "__update" in DATATYPE_FUNCTIONS:
                     print("DEBUG >> " + self.name + "__" + accessor[1] + "__update already found.") # info
                 else :
-                    self.out += "fn " + self.name + "__" + accessor[1] + "__update<T> (a : " + self.name + ", "
+                    self.out += "fn " + self.name + "__" + accessor[1] + "__update<T> (arg : " + self.name + ", "
                     self.out += accessor[1] + ": T) -> "+ self.name +" {"
-                    self.out += "match a {\n"
+                    self.out += "match arg {\n"
                     for cons in self.code:
                         accessors_cons = cons[2:]
                         if accessor in accessors_cons:
