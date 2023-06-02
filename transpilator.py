@@ -24,7 +24,8 @@ use std::rc::Rc
 use std::clone::Clone;
 use std::hash::Hash;
 use std::collections::HashMap;
-use std::any::Any;"""
+use std::any::Any;
+use ordered_float::NotNan;"""
 
 datatype_header = """
 
@@ -32,12 +33,13 @@ fn Rc_unwrap_or_clone<T : Clone>(rc : Rc<T>) -> T{
     Rc::try_unwrap(rc).unwrap_or_else(|rc| (*rc).clone())
 }
 
-#[derive(Clone, Debug, PartialEq)]
-struct ordstruct_adt__ordstruct_adt {}
+#[derive(Clone, PartialEq, Eq, Hash)]
+struct ordstruct {}
 """
 
 function_header = """
 
+#[derive(Clone)]
 struct funtype<A: Eq + Hash, V : Clone> {
     explicit: Rc<dyn Fn(A) -> V>,
     hashtable: HashMap<A, V>,

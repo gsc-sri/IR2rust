@@ -2,6 +2,7 @@ from language_types import *
 from datatypes import *
 
 DEBUG = True
+HIGH_PERF = True
 
 def debug(c: str) -> None:
     if DEBUG:
@@ -202,7 +203,9 @@ class Evalue(expr):
 
     def toRust(self) -> str:
         if isinstance(self.returnType, Treal):
-            return self.code + "f32"
+            if HIGH_PERF:
+                return "(unsafe{NotNan::new(" + self.code + "f32).unwrap_unchecked()})"
+            return "NotNan::new(" + self.code + "f32).unwrap()"
         elif isinstance(self.returnType, Tint):
             return self.code + "i32"
         else:
@@ -635,8 +638,10 @@ class Efn(expr):
         self.env = self.body.env
 
         self.usedVars: list[var] = self.body.usedVars
-        global FUNCTIONS
-        FUNCTIONS.append(Tfunction(None, self.name, [[arg[1] for arg in self.args], self.outtype]))
+        
+        if self.name != "": 
+            global FUNCTIONS
+            FUNCTIONS.append(Tfunction(None, self.name, [[arg[1] for arg in self.args], self.outtype]))
 
         debug("Efn : function " + str(self.args) + " -> " + str(self.outtype))
 

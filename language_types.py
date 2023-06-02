@@ -3,7 +3,7 @@ TYPE_DECLARATIONS = "" # will be modified by Tcustom & Trecord to add type decla
 # eg "type hello__bwaa_adt = i32;\n"
 
 CUSTOM_TYPES : list = [] # list[typ]
-DATATYPES = ["ordstruct_adt__ordstruct_adt"] # ordstruct is a structure used in every datatype declaration
+DATATYPES = ["ordstruct"] # ordstruct is a structure used in every datatype declaration
 RECORDS : list = [] # list[record]
 
 FUNCTIONS : list = [] # list[Tfunction]
@@ -43,7 +43,7 @@ class Treal(typ):
         self.code = code
 
     def toRust(self) -> str:
-        return "f32"
+        return "NotNan<f32>"
 
 class Tbool(typ):
     def __init__(self, code : list) -> None:

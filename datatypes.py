@@ -15,21 +15,14 @@ class datatype:
         # Unpacking
         while isinstance(self.code[0][0], list): self.code = self.code[0]
 
-        # Use the format theory__accessor__rustType
-        # ie btree__val__i32 
-        # if shared , ie same accessor same type , we should match the enum 
         # if not shared, we should unpack the enum (unsafe to be faster ?)
         # https://rust-lang.github.io/unsafe-code-guidelines/layout/enums.html
         # note that the size of the datatype will be of the bigger possibility:
         # https://doc.rust-lang.org/reference/items/unions.html
-        # we will probably need an accessor operator
-
-        # apres faudra revenir au flameggraph de la rpz en fonction des arrays
-        # change panic! to unreachable!
 
         # --- ENUM CONSTRUCTION ---
 
-        self.out += "#[derive(Clone, PartialEq)]\nenum " + self.name + "{"
+        self.out += "#[derive(Clone, PartialEq, Eq, Hash)]\nenum " + self.name + "{"
         for constructor in self.code:
             self.out += constructor[1] + "("+ constructor[1] +"),\n"
         self.out += "}\n\n"
@@ -37,7 +30,7 @@ class datatype:
         # --- STRUCTS CONSTRUCTION ---
 
         for constructor in self.code:
-            self.out += "#[derive(Clone, PartialEq)]\nstruct " + constructor[1] + " {\n"
+            self.out += "#[derive(Clone, PartialEq, Eq, Hash)]\nstruct " + constructor[1] + " {\n"
             for accessor in constructor[2:]:
                 self.out += accessor[1] + ": Rc<" + get_type(accessor[2]).toRust() + ">,\n"
             self.out += "}\n\n"

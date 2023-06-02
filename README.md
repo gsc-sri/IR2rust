@@ -12,6 +12,7 @@ can be found here : https://github.com/gsc-sri/PVS , the pvs2rust.lisp file shou
 Supports:
  - `let`, `lett`, `if`, `release`
  - Integers (only `i32` because casting would result in a big time loss + overflow detection of rust)
+ - Reals (using NotNaN wrapper)
  - Arrays : `lookup` & `update` in an optimized way + creation from function (`lett`)
  - Lambda functions : `lambda`
  - Enums
@@ -49,3 +50,9 @@ a : TYPE = (b : below(10), c : below(b))
 Use flamegraph : 
 Some updates are very slow due to copying,
 We should also consider another hashing algorithm.
+
+### Misc
+
+Check that all the types have the Clone + PartialEq + Eq + Hash traits.
+ - Funtypes : TBD
+ - Records : TBD
