@@ -22,7 +22,7 @@ class datatype:
 
         # --- ENUM CONSTRUCTION ---
 
-        self.out += "#[derive(Clone, PartialEq, Eq, Hash)]\nenum " + self.name + "{"
+        self.out += "#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]\nenum " + self.name + "{"
         for constructor in self.code:
             self.out += constructor[1] + "("+ constructor[1] +"),\n"
         self.out += "}\n\n"
@@ -30,7 +30,7 @@ class datatype:
         # --- STRUCTS CONSTRUCTION ---
 
         for constructor in self.code:
-            self.out += "#[derive(Clone, PartialEq, Eq, Hash)]\nstruct " + constructor[1] + " {\n"
+            self.out += "#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]\nstruct " + constructor[1] + " {\n"
             for accessor in constructor[2:]:
                 self.out += accessor[1] + ": Rc<" + get_type(accessor[2]).toRust() + ">,\n"
             self.out += "}\n\n"

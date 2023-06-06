@@ -160,7 +160,7 @@ class Trecord(typ):
             self.name = "record_" + str(len(RECORDS))
 
             global TYPE_DECLARATIONS
-            out = "#[derive(Clone, PartialEq, Eq, Hash)]\nstruct " + self.name + "{\n"
+            out = "#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]\nstruct " + self.name + "{\n"
             for field in self.fields:
                 out += field[0] + " : " + field[1].toRust() + ",\n"
             out += "}\n"

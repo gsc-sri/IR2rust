@@ -532,7 +532,7 @@ class Eupdate(expr):
                 output = self.lhs.toRust() + "." + self.index + " = " + self.value.toRust() 
             output += "; " + Eupdate.get_recordtype_name(self.lhs)
         elif isinstance(self.lhsType, Tfunction):
-            output = self.lhs.toRust() + ".update(" + self.arg.toRust() + ", " + self.value.toRust() + ");\n" 
+            output = self.lhs.toRust() + ".update(" + self.arg.toRust() + ", " + self.value.toRust() + ")\n" 
         return output
 
 
@@ -672,7 +672,7 @@ class Efn(expr):
             output = output.strip(',') + ") -> " + self.outtype.toRust() + '{'
             output += self.body.toRust() + '}'
         else:
-            output = "funtype::new(Rc::new(move |"
+            output = "funtype::new(Rc::new(move |" # see https://doc.rust-lang.org/std/keyword.move.html for move
             for arg in self.args:
                 if self.env.get_var(arg[0]).mutable: output += "mut "
                 output += self.env.get_var(arg[0]).name + ": " + arg[1].toRust() + ","

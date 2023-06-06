@@ -30,19 +30,16 @@ use std::collections::BTreeMap;
 use std::cmp::Ordering;
 use std::mem::transmute_copy;
 
-fn Rc_unwrap_or_clone<T : Clone>(rc : Rc<T>) -> T{
+fn Rc_unwrap_or_clone<T: Clone>(rc: Rc<T>) -> T {
     Rc::try_unwrap(rc).unwrap_or_else(|rc| (*rc).clone())
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct ordstruct {}
 
-trait RegularOrd: 
-    Clone + PartialEq + Eq + Ord 
-    where Self: std::marker::Sized {}
+trait RegularOrd: Clone + PartialEq + Eq + Ord where Self: std::marker::Sized {}
 
-impl<T> RegularOrd for T 
-    where T: Clone + PartialEq + Eq + Ord {}
+impl<T> RegularOrd for T where T: Clone + PartialEq + Eq + Ord {}
 
 #[derive(Clone)]
 struct funtype<A: RegularOrd, V: RegularOrd> {
@@ -50,22 +47,22 @@ struct funtype<A: RegularOrd, V: RegularOrd> {
     hashtable: Rc<BTreeMap<A, V>>, // rc for padding , BTree map more efficient
 }
 
-impl<A:RegularOrd,V:RegularOrd> PartialEq for funtype<A, V> {
+impl<A: RegularOrd, V: RegularOrd> PartialEq for funtype<A, V> {
     fn eq(&self, other: &Self) -> bool {
-        false
+        panic!("Can't test equality of two functions")
     }
 }
-impl<A:RegularOrd,V:RegularOrd> Eq for funtype<A, V> {}
+impl<A: RegularOrd, V: RegularOrd> Eq for funtype<A, V> {}
 
-impl<A:RegularOrd, V:RegularOrd> PartialOrd for funtype<A, V> {
+impl<A: RegularOrd, V: RegularOrd> PartialOrd for funtype<A, V> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<A:RegularOrd, V:RegularOrd> Ord for funtype<A, V> {
+impl<A: RegularOrd, V: RegularOrd> Ord for funtype<A, V> {
     fn cmp(&self, other: &Self) -> Ordering {
-        panic!()
+        panic!("Can't have proper ordering for two functions")
     }
 }
 
@@ -77,7 +74,7 @@ impl<A: RegularOrd, V: RegularOrd> funtype<A, V> {
         }
     }
     fn lookup(&self, a: A) -> V {
-        match (self.hashtable).get(&a) {
+        match self.hashtable.get(&a) {
             Some(v) => v.clone(),
             None => (self.explicit)(a),
         }
