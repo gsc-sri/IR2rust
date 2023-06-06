@@ -98,6 +98,7 @@ class env:
 
 def get_expr(tabl: list[list | str] | str, env: env, returnType: typ, name = "") -> expr:
     # From ['object', ...] to corresponding expr
+    # returnType is the expected type of teh expresseion, it is None if unknown
     if isinstance(tabl, str): # int bool etc
         return Evalue(tabl, env, returnType, name)
     try:
@@ -209,6 +210,7 @@ class Evalue(expr):
         elif isinstance(self.returnType, Tint):
             return self.code + "i32"
         else:
+            debug("W >> printing value of type " + str(self.returnType))
             return self.code
 
 
@@ -483,7 +485,8 @@ class Eupdate(expr):
             debug("Eupdate : function " + self.lhs.toRust())
 
         else:
-            raise Exception()
+            print(isinstance(self.lhsType, Tfunction), type(self.lhsType))
+            raise Exception("Trying to update " + self.lhs.toRust() + " of type " + str(self.lhsType))
 
     def get_array_name(e : expr):
         if isinstance(e, Evariable):
@@ -504,12 +507,10 @@ class Eupdate(expr):
     def type(code: expr) -> typ:
         if isinstance(code, Evariable):
             t : typ = code.fromEnv.type
-            while True:
-                if isinstance(t, Tarray) : return Tarray
-                elif isinstance(t, Trecord) : return Trecord
-                elif isinstance(t, Tfunction) : return Tfunction
-                elif isinstance(t, Tcustom) : t = t.type
-                else : raise Exception("E >> lhs of update is neither array or record, but " + str(t))
+            while isinstance(t, Tcustom):
+                t = t.type
+            assert isinstance(t, Tarray) or isinstance(t, Trecord) or isinstance(t, Tfunction) 
+            return t
         elif isinstance(code, Eget):
             return Eupdate.type(code.recordtype)
         elif isinstance(code, Elookup):
@@ -518,19 +519,19 @@ class Eupdate(expr):
             raise Exception("E >> cannot determine code if element is neither var, lookup or get")
 
     def toRust(self):
-        if self.lhsType == "array":
+        if isinstance(self.lhsType, Tarray):
             if not isinstance(self.lhs, Evariable): #get ou lookup
                 output = "(*Rc::make_mut(&mut " + self.lhs.lhsToRust() + "))["+ self.index.toRust() +" as usize] = "
             else:
                 output = "(*Rc::make_mut(&mut " + self.lhs.toRust() + "))["+ self.index.toRust() +" as usize] = "
             output += self.value.toRust() +"; " + Eupdate.get_array_name(self.lhs)  # no clone : A normal forn  
-        elif self.lhsType == "recordtype":
+        elif isinstance(self.lhsType, Trecord):
             if not isinstance(self.lhs, Evariable): #get ou lookup
                 output = self.lhs.lhsToRust() + "." + self.index + " = " + self.value.toRust() 
             else:
                 output = self.lhs.toRust() + "." + self.index + " = " + self.value.toRust() 
             output += "; " + Eupdate.get_recordtype_name(self.lhs)
-        elif self.lhsType == "function":
+        elif isinstance(self.lhsType, Tfunction):
             output = self.lhs.toRust() + ".update(" + self.arg.toRust() + ", " + self.value.toRust() + ");\n" 
         return output
 
@@ -554,8 +555,7 @@ class Eoperator(expr):
         self.args: list[expr] = []
         for i in range(self.nbArgs):
             c = self.code[i + 1]
-            self.args.append(get_expr(c, self.env, self.returnType)) # if the output type is t then we expect 
-                                                                    # the args to be of type t
+            self.args.append(get_expr(c, self.env, None)) # Thanks to A-normal form there should be no need for returnType
             self.env = self.args[-1].env
             
         self.usedVars: list[var] = []
