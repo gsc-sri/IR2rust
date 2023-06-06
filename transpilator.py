@@ -10,6 +10,7 @@ from language import *
 from datatypes import *
 
 header = """
+// --- HEADER BEGINS ---
 #![allow(
     non_snake_case,
     dead_code,
@@ -20,14 +21,14 @@ header = """
     unused_imports
 )]
 
-use std::rc::Rc
+use std::mem::size_of;
+use std::rc::Rc;
 use std::clone::Clone;
-use std::hash::Hash;
-use std::collections::HashMap;
 use std::any::Any;
-use ordered_float::NotNan;"""
-
-datatype_header = """
+use ordered_float::NotNan;
+use std::collections::BTreeMap;
+use std::cmp::Ordering;
+use std::mem::transmute_copy;
 
 fn Rc_unwrap_or_clone<T : Clone>(rc : Rc<T>) -> T{
     Rc::try_unwrap(rc).unwrap_or_else(|rc| (*rc).clone())
@@ -35,34 +36,59 @@ fn Rc_unwrap_or_clone<T : Clone>(rc : Rc<T>) -> T{
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 struct ordstruct {}
-"""
 
-function_header = """
+trait RegularOrd: 
+    Clone + PartialEq + Eq + Ord 
+    where Self: std::marker::Sized {}
+
+impl<T> RegularOrd for T 
+    where T: Clone + PartialEq + Eq + Ord {}
 
 #[derive(Clone)]
-struct funtype<A: Eq + Hash, V : Clone> {
+struct funtype<A: RegularOrd, V: RegularOrd> {
     explicit: Rc<dyn Fn(A) -> V>,
-    hashtable: HashMap<A, V>,
+    hashtable: Rc<BTreeMap<A, V>>, // rc for padding , BTree map more efficient
 }
 
-impl<A: Eq + Hash, V: Clone> funtype<A, V> {
+impl<A:RegularOrd,V:RegularOrd> PartialEq for funtype<A, V> {
+    fn eq(&self, other: &Self) -> bool {
+        false
+    }
+}
+impl<A:RegularOrd,V:RegularOrd> Eq for funtype<A, V> {}
+
+impl<A:RegularOrd, V:RegularOrd> PartialOrd for funtype<A, V> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<A:RegularOrd, V:RegularOrd> Ord for funtype<A, V> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        panic!()
+    }
+}
+
+impl<A: RegularOrd, V: RegularOrd> funtype<A, V> {
     fn new(explicit: Rc<dyn Fn(A) -> V>) -> funtype<A, V> {
         funtype {
             explicit,
-            hashtable: HashMap::new(),
+            hashtable: Rc::new(BTreeMap::new()),
         }
     }
     fn lookup(&self, a: A) -> V {
-        match self.hashtable.get(&a) {
+        match (self.hashtable).get(&a) {
             Some(v) => v.clone(),
             None => (self.explicit)(a),
         }
     }
-    fn update(mut self, a: A, v: V) -> Self{
-        self.hashtable.insert(a, v);
+    fn update(mut self, a: A, v: V) -> Self {
+        Rc::make_mut(&mut self.hashtable).insert(a, v);
         self
     }
-}"""
+}
+// --- HEADER ENDS ---
+"""
 
 
 isThereDatatype = False
@@ -94,10 +120,6 @@ if __name__ == "__main__":
     executed_rust += "}"
 
     out = header
-    if isThereDatatype:
-        out += datatype_header
-    if len(FUNCTIONS) > 0:
-        out += function_header
     out += "\n\n"
     out += getTypeDecl()
     out += rust
