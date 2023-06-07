@@ -21,14 +21,15 @@ header = """
     unused_imports
 )]
 
-use std::mem::size_of;
+use std::hash::Hash;
 use std::rc::Rc;
 use std::clone::Clone;
 use std::any::Any;
 use ordered_float::NotNan;
-use std::collections::BTreeMap;
-use std::cmp::Ordering;
+use std::collections::HashMap;
 use std::mem::transmute_copy;
+use std::hash::BuildHasherDefault;
+use fxhash::FxHasher;
 
 fn Rc_unwrap_or_clone<T: Clone>(rc: Rc<T>) -> T {
     Rc::try_unwrap(rc).unwrap_or_else(|rc| (*rc).clone())
@@ -37,14 +38,14 @@ fn Rc_unwrap_or_clone<T: Clone>(rc: Rc<T>) -> T {
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct ordstruct {}
 
-trait RegularOrd: Clone + PartialEq + Eq + Ord where Self: std::marker::Sized {}
+trait RegularOrd: Clone + PartialEq + Eq + Hash where Self: std::marker::Sized {}
 
-impl<T> RegularOrd for T where T: Clone + PartialEq + Eq + Ord {}
+impl<T> RegularOrd for T where T: Clone + PartialEq + Eq + Hash {}
 
 #[derive(Clone)]
 struct funtype<A: RegularOrd, V: RegularOrd> {
     explicit: Rc<dyn Fn(A) -> V>,
-    hashtable: Rc<BTreeMap<A, V>>, // rc for padding , BTree map more efficient
+    hashtable: Rc<HashMap<A, V, BuildHasherDefault<FxHasher>>>, // way better than BTreeMap...
 }
 
 impl<A: RegularOrd, V: RegularOrd> PartialEq for funtype<A, V> {
@@ -54,14 +55,8 @@ impl<A: RegularOrd, V: RegularOrd> PartialEq for funtype<A, V> {
 }
 impl<A: RegularOrd, V: RegularOrd> Eq for funtype<A, V> {}
 
-impl<A: RegularOrd, V: RegularOrd> PartialOrd for funtype<A, V> {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl<A: RegularOrd, V: RegularOrd> Ord for funtype<A, V> {
-    fn cmp(&self, other: &Self) -> Ordering {
+impl<A: RegularOrd, V: RegularOrd> Hash for funtype<A, V> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         panic!("Can't have proper ordering for two functions")
     }
 }
@@ -70,7 +65,7 @@ impl<A: RegularOrd, V: RegularOrd> funtype<A, V> {
     fn new(explicit: Rc<dyn Fn(A) -> V>) -> funtype<A, V> {
         funtype {
             explicit,
-            hashtable: Rc::new(BTreeMap::new()),
+            hashtable: Rc::new(HashMap::default()),
         }
     }
     fn lookup(&self, a: A) -> V {
@@ -79,7 +74,7 @@ impl<A: RegularOrd, V: RegularOrd> funtype<A, V> {
             None => (self.explicit)(a),
         }
     }
-    fn update(mut self, a: A, v: V) -> Self {
+    fn update(mut self, a: A, v: V) -> Self { // slow make mut
         Rc::make_mut(&mut self.hashtable).insert(a, v);
         self
     }

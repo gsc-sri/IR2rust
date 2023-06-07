@@ -314,6 +314,10 @@ class Elett(expr):
         # --- From function to array
         elif type(self.fromType) == Tfunction and type(vt) == Tarray:
             output += self.fromType.toRustArray(vt, self.expr.toRust(), 1)
+        elif type(self.fromType) == Tint and type(vt) == Treal:
+            output += "NotNan::new({" + self.expr.toRust() + "} as f32);\n"
+        elif type(self.fromType) == Treal and type(vt) == Tint:
+            output += "{" + self.expr.toRust() + "}.into_inner() as i32;\n"
         else :
             raise Exception("E >> cannot convert from " + str(type(vt)) + " to " + str(type(self.fromType)))
         output += self.body.toRust()
